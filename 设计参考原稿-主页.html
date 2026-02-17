@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>首页 - 金策智显金融智能终端</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0de3f2",
+                        "primary-dark": "#0bb5c2",
+                        "background-light": "#f5f8f8",
+                        "background-dark": "#0D1117",
+                        "surface-dark": "#161b22",
+                        "surface-light": "#21262d",
+                        "accent-red": "#ff6b6b",
+                        "accent-gold": "#ffd700",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0D1117; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #30363d; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0de3f2; 
+        }
+        
+        .glass-nav {
+            background: rgba(13, 17, 23, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        }
+
+        .ticker-wrap {
+            width: 100%;
+            overflow: hidden;
+            background-color: #0D1117;
+            border-bottom: 1px solid #30363d;
+        }
+        .ticker {
+            display: inline-block;
+            white-space: nowrap;
+            padding-right: 100%;
+            box-sizing: content-box;
+            animation: ticker 30s linear infinite;
+        }
+        .ticker__item {
+            display: inline-block;
+            padding: 0 2rem;
+            color: #c9d1d9;
+        }
+        @keyframes ticker {
+            0% { transform: translate3d(0, 0, 0); }
+            100% { transform: translate3d(-100%, 0, 0); }
+        }
+
+        /* Chart placeholder gradient lines */
+        .sparkline-path {
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-gray-100 font-display min-h-screen flex flex-col">
+<!-- Sticky Header -->
+<header class="sticky top-0 z-50 glass-nav w-full">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex items-center justify-between h-16">
+<!-- Logo -->
+<div class="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+<div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center border border-primary/40">
+<span class="material-icons text-primary text-xl">insights</span>
+</div>
+<span class="text-xl font-bold tracking-tight text-white">金策<span class="text-primary">智显</span></span>
+</div>
+<!-- Navigation -->
+<nav class="hidden md:flex space-x-8">
+<a class="text-gray-300 hover:text-primary transition-colors text-sm font-medium border-b-2 border-transparent hover:border-primary py-5" href="#">国会交易</a>
+<a class="text-gray-300 hover:text-primary transition-colors text-sm font-medium border-b-2 border-transparent hover:border-primary py-5" href="#">A股行情</a>
+<a class="text-gray-300 hover:text-primary transition-colors text-sm font-medium border-b-2 border-transparent hover:border-primary py-5" href="#">黄金市场</a>
+<a class="text-gray-300 hover:text-primary transition-colors text-sm font-medium border-b-2 border-transparent hover:border-primary py-5 flex items-center gap-1" href="#">
+                        AI监控 <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+</a>
+<a class="text-gray-300 hover:text-primary transition-colors text-sm font-medium border-b-2 border-transparent hover:border-primary py-5" href="#">数据统计</a>
+</nav>
+<!-- Right Side Actions -->
+<div class="flex items-center gap-4">
+<div class="relative hidden lg:block group">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons text-gray-500 text-sm">search</span>
+</div>
+<input class="block w-64 pl-10 pr-12 py-1.5 border border-gray-700 rounded-md leading-5 bg-surface-dark text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-surface-light focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm transition-all" placeholder="搜索代码、议员或资讯..." type="text"/>
+<div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+<span class="text-gray-500 sm:text-xs bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">Ctrl+K</span>
+</div>
+</div>
+<button class="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/50 hover:border-primary px-4 py-1.5 rounded-md text-sm font-medium transition-all shadow-[0_0_10px_rgba(13,227,242,0.1)]">
+                        登录 / 注册
+                    </button>
+</div>
+</div>
+</div>
+</header>
+<!-- Ticker Tape -->
+<div class="ticker-wrap">
+<div class="ticker font-mono text-xs py-2">
+<div class="ticker__item">
+<span class="font-bold text-gray-400">标普500 (SPX)</span>
+<span class="text-white ml-2">4,783.45</span>
+<span class="text-primary ml-1">▲ 0.45%</span>
+</div>
+<div class="ticker__item">
+<span class="font-bold text-gray-400">纳斯达克 (NDX)</span>
+<span class="text-white ml-2">16,832.92</span>
+<span class="text-primary ml-1">▲ 0.62%</span>
+</div>
+<div class="ticker__item">
+<span class="font-bold text-gray-400">沪深300 (CSI300)</span>
+<span class="text-white ml-2">3,289.10</span>
+<span class="text-accent-red ml-1">▼ 0.21%</span>
+</div>
+<div class="ticker__item">
+<span class="font-bold text-gray-400">现货黄金 (XAU/USD)</span>
+<span class="text-accent-gold ml-2">2,048.50</span>
+<span class="text-primary ml-1">▲ 0.15%</span>
+</div>
+<div class="ticker__item">
+<span class="font-bold text-gray-400">上证指数 (SSEC)</span>
+<span class="text-white ml-2">2,893.25</span>
+<span class="text-accent-red ml-1">▼ 0.18%</span>
+</div>
+<div class="ticker__item">
+<span class="font-bold text-gray-400">美元指数 (DXY)</span>
+<span class="text-white ml-2">102.30</span>
+<span class="text-primary ml-1">▲ 0.05%</span>
+</div>
+</div>
+</div>
+<!-- Main Content -->
+<main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+<!-- Top Section Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+<!-- Latest Congressional Trades (Top Left) -->
+<div class="lg:col-span-7 bg-surface-dark border border-gray-800 rounded-lg p-5 shadow-lg relative overflow-hidden group">
+<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-50"></div>
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+<span class="material-icons text-primary text-sm">gavel</span>
+                        最新国会交易动态
+                    </h2>
+<a class="text-xs text-gray-500 hover:text-primary transition-colors flex items-center" href="#">查看全部 <span class="material-icons text-sm">chevron_right</span></a>
+</div>
+<div class="space-y-3">
+<!-- Trade Item -->
+<div class="flex items-center justify-between p-3 bg-surface-light/30 rounded-md border border-gray-800/50 hover:border-gray-700 transition-all hover:bg-surface-light/50 cursor-pointer">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-gray-600" data-alt="Female politician portrait in professional suit" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLH0Z4dZXCuaORzh5uNL5aw-GwEodrxuzON_1bfFrUh4PgIJIBdQEQdxxbHfWTn22M6HuGrVOsfFfLdM-jeYj6YfyUCMd_kqtcIu_M9nI5dgWt9iVeysMxPHhINCBYgueE-GtjrYHCjidlphNVM7UKQC58X8fQQBodAAjaP77YNQQVSVqbOhdZgJuoST1cal3taFMarHoqxgCtDkj9QYDrhipyR4h1dOmMCoGas-V7f-4P_51BRm87MeJ-b16kKO_hAVcqF3W0RqYS"/>
+<div>
+<div class="text-sm font-medium text-white">Nancy P. <span class="text-gray-500 text-xs font-normal">众议员 (CA)</span></div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-xs font-mono bg-gray-800 text-gray-300 px-1.5 rounded border border-gray-700">NVDA</span>
+<span class="text-[10px] text-gray-400">2小时前披露</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<div class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                                买入 Call
+                            </div>
+<div class="text-xs text-gray-400 mt-1 font-mono">$1M - $5M</div>
+</div>
+</div>
+<!-- Trade Item -->
+<div class="flex items-center justify-between p-3 bg-surface-light/30 rounded-md border border-gray-800/50 hover:border-gray-700 transition-all hover:bg-surface-light/50 cursor-pointer">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-gray-600" data-alt="Male politician portrait in business suit" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAp2G11znq4k0KQZcN3FUoHg4BvCsw_UlxrKd-8QqKNad2qvjthMX2yqRjsnpfAxIiq8GyfYUR0fO8-m_jQYzqhCVgNyewUdTZ_2JXrVQigdmVep9Td9Hyo0AVjI3AZJ0eC7-GDwMR1TrUWcIBWYfUFxcWmcupbF1PBlG-_IE8WPrzpuHgIybL-Xoea5LwDuZJOMrmowCLkQuv97GbAS3M3Vu9ROXT0crhnpo16ia3K4SXH9M6TI5rRSuyq_iGXYMxBqPPq8WN3zAah"/>
+<div>
+<div class="text-sm font-medium text-white">Michael M. <span class="text-gray-500 text-xs font-normal">众议员 (TX)</span></div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-xs font-mono bg-gray-800 text-gray-300 px-1.5 rounded border border-gray-700">TSLA</span>
+<span class="text-[10px] text-gray-400">5小时前披露</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<div class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-accent-red/10 text-accent-red border border-accent-red/20">
+                                卖出 Stock
+                            </div>
+<div class="text-xs text-gray-400 mt-1 font-mono">$250K - $500K</div>
+</div>
+</div>
+<!-- Trade Item -->
+<div class="flex items-center justify-between p-3 bg-surface-light/30 rounded-md border border-gray-800/50 hover:border-gray-700 transition-all hover:bg-surface-light/50 cursor-pointer">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-gray-600" data-alt="Female politician professional headshot" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7U7DR8YbBe5T6H2I4kO0NuLJ1-unZK3El0-Szp1g3-hVrW5obILES90c-kft7q6V_FNWQYVxM731NkSVhpk9RFANgym2PS41vHDa76tdwTJP8EoM4SW6yKtK5wJuBCI84PiZ0OynJKhXnQ8ACjJp1Qsm8EuWNZ9V9RhDJEcJwVKLankjth9OahYVtHojgch1hGeDzctP01XyqImcvc0TgFtmuG0R8nfCwTvCLo98YqwsOY9pOEpAMxydhydX2iFpc2s3EThdhRmDF"/>
+<div>
+<div class="text-sm font-medium text-white">Marjorie G. <span class="text-gray-500 text-xs font-normal">众议员 (GA)</span></div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="text-xs font-mono bg-gray-800 text-gray-300 px-1.5 rounded border border-gray-700">MSFT</span>
+<span class="text-[10px] text-gray-400">昨天披露</span>
+</div>
+</div>
+</div>
+<div class="text-right">
+<div class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary/10 text-primary border border-primary/20">
+                                买入 Stock
+                            </div>
+<div class="text-xs text-gray-400 mt-1 font-mono">$15K - $50K</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Top ROI Leaderboard (Top Right) -->
+<div class="lg:col-span-5 bg-surface-dark border border-gray-800 rounded-lg p-5 shadow-lg flex flex-col">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-lg font-semibold text-white flex items-center gap-2">
+<span class="material-icons text-accent-gold text-sm">emoji_events</span>
+                        热门议员收益榜
+                    </h2>
+<span class="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">近30天</span>
+</div>
+<div class="flex-grow overflow-hidden">
+<table class="w-full text-left text-sm">
+<thead>
+<tr class="text-gray-500 border-b border-gray-800">
+<th class="pb-2 font-medium">排名</th>
+<th class="pb-2 font-medium">议员</th>
+<th class="pb-2 font-medium text-right">ROI</th>
+<th class="pb-2 font-medium text-right w-20">趋势</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-800">
+<tr class="group hover:bg-surface-light/30 transition-colors">
+<td class="py-3 pl-1 text-accent-gold font-bold font-mono">01</td>
+<td class="py-3">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">B</div>
+<span class="text-gray-200">Brian Higgins</span>
+</div>
+</td>
+<td class="py-3 text-right text-primary font-mono font-medium">+42.5%</td>
+<td class="py-3 text-right">
+<svg class="w-16 h-6 ml-auto" viewbox="0 0 60 20">
+<path class="sparkline-path stroke-primary" d="M0 18 L10 12 L20 15 L30 8 L40 10 L50 2 L60 5"></path>
+</svg>
+</td>
+</tr>
+<tr class="group hover:bg-surface-light/30 transition-colors">
+<td class="py-3 pl-1 text-gray-400 font-bold font-mono">02</td>
+<td class="py-3">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">M</div>
+<span class="text-gray-200">Mark Green</span>
+</div>
+</td>
+<td class="py-3 text-right text-primary font-mono font-medium">+31.2%</td>
+<td class="py-3 text-right">
+<svg class="w-16 h-6 ml-auto" viewbox="0 0 60 20">
+<path class="sparkline-path stroke-primary" d="M0 15 L10 16 L20 10 L30 12 L40 5 L50 8 L60 3"></path>
+</svg>
+</td>
+</tr>
+<tr class="group hover:bg-surface-light/30 transition-colors">
+<td class="py-3 pl-1 text-gray-500 font-bold font-mono">03</td>
+<td class="py-3">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">G</div>
+<span class="text-gray-200">Garret Graves</span>
+</div>
+</td>
+<td class="py-3 text-right text-primary font-mono font-medium">+18.9%</td>
+<td class="py-3 text-right">
+<svg class="w-16 h-6 ml-auto" viewbox="0 0 60 20">
+<path class="sparkline-path stroke-primary" d="M0 19 L10 15 L20 16 L30 14 L40 10 L50 12 L60 8"></path>
+</svg>
+</td>
+</tr>
+<tr class="group hover:bg-surface-light/30 transition-colors">
+<td class="py-3 pl-1 text-gray-600 font-bold font-mono">04</td>
+<td class="py-3">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">D</div>
+<span class="text-gray-200">Debbie D.</span>
+</div>
+</td>
+<td class="py-3 text-right text-gray-400 font-mono font-medium">+5.4%</td>
+<td class="py-3 text-right">
+<svg class="w-16 h-6 ml-auto" viewbox="0 0 60 20">
+<path class="sparkline-path stroke-gray-500" d="M0 12 L10 12 L20 10 L30 14 L40 12 L50 10 L60 11"></path>
+</svg>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Middle Full-Width Card: Market Panorama -->
+<div class="w-full bg-surface-dark border border-gray-800 rounded-lg p-0 shadow-lg mb-12 overflow-hidden">
+<div class="border-b border-gray-800 px-5 py-4 flex items-center justify-between bg-surface-light/20">
+<div class="flex items-center gap-4">
+<h2 class="text-lg font-semibold text-white">市场行情全景</h2>
+<div class="flex space-x-1 bg-black/40 p-1 rounded-lg">
+<button class="px-3 py-1 rounded text-xs font-medium bg-primary/20 text-primary">A股热力图</button>
+<button class="px-3 py-1 rounded text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors">黄金走势</button>
+<button class="px-3 py-1 rounded text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors">美股期指</button>
+</div>
+</div>
+<div class="text-xs text-gray-500 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    数据实时更新
+                </div>
+</div>
+<div class="p-5 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[400px]">
+<!-- Heatmap (Takes up 2/3) -->
+<div class="lg:col-span-2 bg-black/20 rounded border border-gray-800 p-2 relative">
+<div class="absolute inset-0 flex flex-wrap content-start p-1">
+<!-- Simulated Heatmap Layout using CSS Grid/Flex for effect -->
+<div class="w-1/3 h-1/2 p-1">
+<div class="w-full h-full bg-primary/30 border border-primary/40 rounded hover:bg-primary/40 transition-colors flex flex-col items-center justify-center p-2 cursor-pointer relative overflow-hidden">
+<span class="text-sm font-bold text-white relative z-10">TMT 科技</span>
+<span class="text-xs text-primary-light relative z-10">+2.45%</span>
+<div class="absolute bottom-0 right-0 w-12 h-12 bg-gradient-to-tl from-white/10 to-transparent"></div>
+</div>
+</div>
+<div class="w-1/3 h-1/2 p-1 flex flex-col">
+<div class="h-2/3 pb-1">
+<div class="w-full h-full bg-primary/20 border border-primary/30 rounded flex flex-col items-center justify-center cursor-pointer">
+<span class="text-xs font-bold text-gray-200">新能源</span>
+<span class="text-[10px] text-primary-light">+1.12%</span>
+</div>
+</div>
+<div class="h-1/3 pt-1 flex gap-1">
+<div class="w-1/2 bg-surface-light border border-gray-700 rounded flex flex-col items-center justify-center">
+<span class="text-[10px] text-gray-400">银行</span>
+<span class="text-[10px] text-gray-500">0.0%</span>
+</div>
+<div class="w-1/2 bg-accent-red/20 border border-accent-red/30 rounded flex flex-col items-center justify-center">
+<span class="text-[10px] text-gray-300">地产</span>
+<span class="text-[10px] text-accent-red">-1.2%</span>
+</div>
+</div>
+</div>
+<div class="w-1/3 h-1/2 p-1">
+<div class="w-full h-full bg-primary/10 border border-primary/20 rounded flex flex-col items-center justify-center cursor-pointer">
+<span class="text-sm font-bold text-gray-300">半导体</span>
+<span class="text-xs text-primary-light">+0.85%</span>
+</div>
+</div>
+<div class="w-1/2 h-1/2 p-1 flex">
+<div class="w-2/3 h-full pr-1">
+<div class="w-full h-full bg-surface-light border border-gray-700 rounded flex flex-col items-center justify-center">
+<span class="text-xs font-bold text-gray-400">消费电子</span>
+<span class="text-[10px] text-gray-500">-0.15%</span>
+</div>
+</div>
+<div class="w-1/3 h-full pl-1 flex flex-col gap-1">
+<div class="h-1/2 bg-accent-red/10 border border-accent-red/20 rounded"></div>
+<div class="h-1/2 bg-primary/10 border border-primary/20 rounded"></div>
+</div>
+</div>
+<div class="w-1/2 h-1/2 p-1">
+<div class="w-full h-full bg-surface-light/50 border border-gray-700 rounded flex flex-col items-center justify-center cursor-pointer">
+<span class="text-sm font-bold text-gray-300">医药生物</span>
+<span class="text-xs text-gray-400">-0.05%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Gold Chart (Takes up 1/3) -->
+<div class="lg:col-span-1 flex flex-col">
+<div class="flex items-center justify-between mb-2">
+<span class="text-sm text-gray-400 font-medium">黄金实时走势 (XAU)</span>
+<span class="text-accent-gold font-mono font-bold">2,048.50</span>
+</div>
+<div class="flex-grow bg-black/40 rounded border border-gray-800 p-4 relative flex items-end">
+<!-- Decorative Grid -->
+<div class="absolute inset-0 grid grid-cols-4 grid-rows-4">
+<div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-b border-white/5"></div>
+<div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-b border-white/5"></div>
+<div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-r border-b border-white/5"></div><div class="border-b border-white/5"></div>
+<div class="border-r border-white/5"></div><div class="border-r border-white/5"></div><div class="border-r border-white/5"></div><div></div>
+</div>
+<!-- Line Chart SVG -->
+<svg class="w-full h-full absolute inset-0 p-2" preserveaspectratio="none" viewbox="0 0 300 150">
+<defs>
+<lineargradient id="goldGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#ffd700" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#ffd700" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path d="M0 120 L30 115 L60 125 L90 100 L120 105 L150 80 L180 85 L210 60 L240 70 L270 40 L300 50" fill="url(#goldGradient)" stroke="none"></path>
+<path d="M0 120 L30 115 L60 125 L90 100 L120 105 L150 80 L180 85 L210 60 L240 70 L270 40 L300 50" fill="none" stroke="#ffd700" stroke-linejoin="round" stroke-width="2"></path>
+<!-- Current price dot -->
+<circle class="animate-ping opacity-75" cx="300" cy="50" fill="#ffd700" r="3"></circle>
+<circle cx="300" cy="50" fill="#fff" r="3"></circle>
+</svg>
+</div>
+</div>
+</div>
+</div>
+<!-- Subscription Section -->
+<div class="mb-8">
+<div class="text-center mb-10">
+<h2 class="text-3xl font-bold text-white mb-3">解锁专业级金融数据</h2>
+<p class="text-gray-400">选择最适合您的投资计划，把握每一次市场脉搏</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+<!-- Basic Plan -->
+<div class="bg-surface-dark border border-gray-800 rounded-xl p-6 hover:border-gray-600 transition-all group relative overflow-hidden">
+<h3 class="text-lg font-medium text-gray-300">基础版</h3>
+<div class="my-4">
+<span class="text-3xl font-bold text-white">¥0</span><span class="text-gray-500"> / 月</span>
+</div>
+<ul class="space-y-3 mb-8 text-sm text-gray-400">
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 每日5条国会交易提醒</li>
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 基础行情数据 (延迟15分)</li>
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 社区访问权限</li>
+</ul>
+<button class="w-full py-2.5 rounded-lg border border-gray-700 text-white font-medium hover:bg-gray-800 transition-colors">当前计划</button>
+</div>
+<!-- Pro Plan (Highlighted) -->
+<div class="bg-surface-dark border border-primary/50 rounded-xl p-6 shadow-[0_0_30px_rgba(13,227,242,0.05)] relative transform hover:-translate-y-1 transition-all duration-300">
+<div class="absolute top-0 right-0 bg-primary text-background-dark text-xs font-bold px-3 py-1 rounded-bl-lg">热门</div>
+<h3 class="text-lg font-medium text-primary">专业版</h3>
+<div class="my-4">
+<span class="text-4xl font-bold text-white">¥199</span><span class="text-gray-500"> / 月</span>
+</div>
+<ul class="space-y-3 mb-8 text-sm text-gray-300">
+<li class="flex items-center gap-2"><span class="material-icons text-primary text-sm">check</span> 实时国会交易推送</li>
+<li class="flex items-center gap-2"><span class="material-icons text-primary text-sm">check</span> 实时Level-2行情</li>
+<li class="flex items-center gap-2"><span class="material-icons text-primary text-sm">check</span> AI智能选股分析</li>
+<li class="flex items-center gap-2"><span class="material-icons text-primary text-sm">check</span> 无限历史数据回测</li>
+</ul>
+<button class="w-full py-2.5 rounded-lg bg-primary hover:bg-primary-dark text-background-dark font-bold transition-colors shadow-lg shadow-primary/25">立即订阅</button>
+</div>
+<!-- Institutional Plan -->
+<div class="bg-surface-dark border border-gray-800 rounded-xl p-6 hover:border-gray-600 transition-all group">
+<h3 class="text-lg font-medium text-gray-300">机构版</h3>
+<div class="my-4">
+<span class="text-3xl font-bold text-white">¥999</span><span class="text-gray-500"> / 月</span>
+</div>
+<ul class="space-y-3 mb-8 text-sm text-gray-400">
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 所有专业版功能</li>
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> API 数据接口访问</li>
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 专属客户经理</li>
+<li class="flex items-center gap-2"><span class="material-icons text-green-500 text-sm">check</span> 多账户协同管理</li>
+</ul>
+<button class="w-full py-2.5 rounded-lg border border-gray-700 text-white font-medium hover:bg-gray-800 transition-colors bg-gradient-to-r from-transparent to-transparent hover:from-white/5 hover:to-white/5">联系销售</button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-dark border-t border-gray-800 pt-12 pb-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+<div class="col-span-1">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-6 h-6 rounded bg-primary/20 flex items-center justify-center border border-primary/40">
+<span class="material-icons text-primary text-sm">insights</span>
+</div>
+<span class="text-lg font-bold text-white">金策智显</span>
+</div>
+<p class="text-gray-500 text-sm leading-relaxed">
+                        致力为个人及机构投资者提供最前沿的金融智能数据分析服务。洞察先机，智胜未来。
+                    </p>
+</div>
+<div>
+<h4 class="text-white font-medium mb-4">平台服务</h4>
+<ul class="space-y-2 text-sm text-gray-500">
+<li><a class="hover:text-primary transition-colors" href="#">国会山追踪</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">A股大数据</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">AI 研报助手</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">API 文档</a></li>
+</ul>
+</div>
+<div>
+<h4 class="text-white font-medium mb-4">关于我们</h4>
+<ul class="space-y-2 text-sm text-gray-500">
+<li><a class="hover:text-primary transition-colors" href="#">公司简介</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">联系方式</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">加入我们</a></li>
+<li><a class="hover:text-primary transition-colors" href="#">合作伙伴</a></li>
+</ul>
+</div>
+<div>
+<h4 class="text-white font-medium mb-4">关注动态</h4>
+<div class="flex space-x-4">
+<a class="text-gray-500 hover:text-white transition-colors" href="#"><span class="material-icons">rss_feed</span></a>
+<a class="text-gray-500 hover:text-white transition-colors" href="#"><span class="material-icons">email</span></a>
+<a class="text-gray-500 hover:text-white transition-colors" href="#"><span class="material-icons">forum</span></a>
+</div>
+</div>
+</div>
+<div class="border-t border-gray-800 pt-8 mt-8 text-center md:text-left">
+<div class="bg-black/20 p-4 rounded-lg border border-gray-800/50 mb-6">
+<p class="text-[10px] text-gray-600 leading-relaxed text-justify">
+<strong class="text-gray-500">免责声明：</strong> 金策智显提供的信息仅供参考，不构成任何投资建议。金融市场存在风险，投资需谨慎。本平台展示的数据（包括但不限于国会交易、股票行情、分析报告）可能存在延迟或误差。用户应独立做出投资决策，并承担相应风险。金策智显不对因使用本平台信息而导致的任何损失负责。股市有风险，入市需谨慎。
+                    </p>
+</div>
+<div class="flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
+<p>© 2024 金策智显 GoldPolicy Intel. All rights reserved.</p>
+<div class="flex space-x-6 mt-4 md:mt-0">
+<a class="hover:text-gray-400" href="#">隐私政策</a>
+<a class="hover:text-gray-400" href="#">服务条款</a>
+<a class="hover:text-gray-400" href="#">Cookie设置</a>
+</div>
+</div>
+</div>
+</div>
+</footer>
+</body></html>

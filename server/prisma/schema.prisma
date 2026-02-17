@@ -1,0 +1,191 @@
+// Prisma Schema — 金策智显数据库
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../data/golden-agent.db"
+}
+
+// ============================================
+// 黄金价格快照（每分钟一条，用于日内走势）
+// ============================================
+model GoldSnapshot {
+  id           Int      @id @default(autoincrement())
+  timestamp    DateTime @default(now())
+  priceUsd     Float?   // COMEX 美元/盎司
+  priceCny     Float?   // Au9999 人民币/克
+  exchangeRate Float?   // USD/CNY
+  spreadPct    Float?   // 国内外价差 %
+
+  @@index([timestamp])
+  @@map("gold_snapshot")
+}
+
+// ============================================
+// 黄金每日收盘（用于历史走势图）
+// ============================================
+model GoldDaily {
+  id       Int      @id @default(autoincrement())
+  date     DateTime @unique
+  open     Float?
+  high     Float?
+  low      Float?
+  close    Float    // 收盘价 CNY/克
+  volume   Float?
+
+  @@index([date])
+  @@map("gold_daily")
+}
+
+// ============================================
+// A 股指数实时行情
+// ============================================
+model StockIndex {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique     // 000001
+  name         String               // 上证指数
+  price        Float?
+  changePct    Float?
+  changeAmount Float?
+  volume       Float?
+  amount       Float?
+  updatedAt    DateTime @default(now())
+
+  @@map("stock_index")
+}
+
+// ============================================
+// 行业板块行情
+// ============================================
+model Sector {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  changePct       Float?
+  leaderStock     String?
+  leaderChangePct Float?
+  updatedAt       DateTime @default(now())
+
+  @@map("sector")
+}
+
+// ============================================
+// 热门个股排行
+// ============================================
+model HotStock {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  name         String
+  price        Float?
+  changePct    Float?
+  changeAmount Float?
+  volume       Float?
+  amount       Float?
+  high         Float?
+  low          Float?
+  open         Float?
+  turnoverRate Float?
+  peRatio      Float?
+  updatedAt    DateTime @default(now())
+
+  @@map("hot_stock")
+}
+
+// ============================================
+// 美国国会议员
+// ============================================
+model Politician {
+  id        Int      @id @default(autoincrement())
+  firstName String
+  lastName  String
+  fullName  String   @unique
+  chamber   String   // house / senate
+  state     String
+  party     String?  // D / R / I
+  district  Int?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  trades    CongressTrade[]
+
+  @@index([chamber])
+  @@map("politician")
+}
+
+// ============================================
+// 国会交易记录
+// ============================================
+model CongressTrade {
+  id              Int      @id @default(autoincrement())
+  politicianId    Int?
+  politician      Politician? @relation(fields: [politicianId], references: [id])
+
+  ticker          String
+  companyName     String?
+  transactionType String   // purchase / sale / sale_partial / sale_full
+  amountMin       Float?
+  amountMax       Float?
+  transactionDate DateTime?
+  disclosureDate  DateTime?
+  sourceChamber   String   @default("house")
+  docId           String?
+  sourceUrl       String?
+
+  // 冗余字段（避免 JOIN）
+  politicianName  String?
+  politicianParty String?
+  politicianState String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([ticker])
+  @@index([transactionType])
+  @@index([disclosureDate])
+  @@index([politicianId])
+  @@map("congress_trade")
+}
+
+// ============================================
+// 内幕交易记录 (SEC Form 4)
+// ============================================
+model InsiderTrade {
+  id              Int      @id @default(autoincrement())
+  ticker          String
+  companyName     String?
+  insiderName     String
+  insiderTitle    String?  // CEO / CFO / Director / 10% Owner
+  transactionType String   // purchase / sale
+  shares          Float?
+  pricePerShare   Float?
+  totalValue      Float?
+  sharesOwned     Float?   // 交易后持有量
+  filingDate      DateTime?
+  transactionDate DateTime?
+  secFormUrl      String?
+  createdAt       DateTime @default(now())
+
+  @@index([ticker])
+  @@index([filingDate])
+  @@index([insiderName])
+  @@map("insider_trade")
+}
+
+// ============================================
+// 新闻/事件动态流
+// ============================================
+model NewsEvent {
+  id        Int      @id @default(autoincrement())
+  type      String   // congress_trade / insider_trade / fund_update / lobbying
+  title     String
+  summary   String?
+  ticker    String?
+  relatedEntity String?  // 议员名 / 基金名 / 公司名
+  url       String?
+  timestamp DateTime @default(now())
+
+  @@index([type])
+  @@index([timestamp])
+  @@index([ticker])
+  @@map("news_event")
+}

@@ -1,0 +1,84 @@
+# ==========================================
+# Golden Agent — .gitignore
+# ==========================================
+
+# ─── Node.js ───
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Next.js ───
+.next/
+out/
+
+# ─── Build Outputs ───
+dist/
+build/
+*.tsbuildinfo
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.venv/
+venv/
+env/
+
+# ─── Database ───
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ─── Environment Variables ───
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ─── IDE / Editor ───
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── OS ───
+*.lnk
+
+# ─── Logs ───
+logs/
+*.log
+
+# ─── Archives ───
+*.zip
+*.7z
+*.gz
+*.tar
+*.rar
+*.bz2
+
+# ─── Compiled / Binary ───
+*.dll
+*.exe
+*.so
+*.dylib
+*.o
+*.obj
+
+# ─── Prisma (generated client) ───
+server/node_modules/.prisma/
+
+# ─── Misc ───
+.turbo/
+.vercel/
+.cache/
+coverage/
