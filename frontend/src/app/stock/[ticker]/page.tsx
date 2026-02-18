@@ -15,6 +15,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Gavel, TrendingUp, Newspaper, BarChart3, Users, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 /* ─── 工具函数 ─── */
 function safeDate(d: string | null | undefined): string {
@@ -66,10 +67,10 @@ function TradingViewChart({ ticker }: { ticker: string }) {
             symbol: ticker,
             interval: "D",
             timezone: "Etc/UTC",
-            theme: "dark",
+            theme: "dark", // We can make this dynamic based on system theme eventually
             style: "1",
             locale: "zh_CN",
-            backgroundColor: "rgba(13, 17, 23, 1)",
+            backgroundColor: "rgba(0, 0, 0, 0)", // Transparent background
             gridColor: "rgba(255, 255, 255, 0.04)",
             hide_top_toolbar: false,
             hide_legend: false,
@@ -97,6 +98,26 @@ const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     { key: "insiders", label: "内幕交易", icon: <TrendingUp className="h-4 w-4" /> },
     { key: "news", label: "相关新闻", icon: <Newspaper className="h-4 w-4" /> },
 ];
+
+/* ─── 动画变量 ─── */
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.1
+        }
+    }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+        opacity: 1,
+        y: 0,
+        transition: { type: "spring", stiffness: 100, damping: 15 } as any
+    }
+};
 
 /* ─── 主页面 ─── */
 export default function StockDetailPage() {
@@ -134,326 +155,362 @@ export default function StockDetailPage() {
     const insiderSells = insiderTrades.length - insiderBuys;
 
     return (
-        <div className="min-h-screen flex flex-col bg-background">
+        <div className="min-h-screen flex flex-col bg-background selection:bg-primary/30">
             <Header />
             <Ticker />
-            <main className="flex-1 container py-8 px-4 md:px-6">
-                {/* 股票头部 */}
-                <div className="mb-6">
-                    <div className="flex items-center gap-3 mb-2">
-                        <Badge className="text-lg font-mono px-3 py-1 bg-primary/10 text-primary border-primary/30">{ticker}</Badge>
-                        <h1 className="text-3xl font-bold tracking-tight">{companyName}</h1>
-                    </div>
-                    <p className="text-muted-foreground">
-                        一站式聚合 {ticker} 的国会交易、内幕交易和相关新闻 · 数据通过 SSE 实时推送
-                    </p>
-                </div>
+            <main className="flex-1 container py-8 px-4 md:px-6 relative z-10">
+                {/* 装饰背景 */}
+                <div className="absolute top-0 left-0 w-full h-[500px] bg-primary/5 blur-[100px] -z-10 rounded-full pointer-events-none translate-y-[-50%] transform-gpu" />
 
-                {/* 统计卡片 */}
-                <div className="grid gap-4 md:grid-cols-4 mb-6">
-                    <Card className="bg-gradient-to-br from-blue-500/5 to-blue-500/0 border-blue-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground">国会交易</CardTitle>
-                            <Gavel className="h-4 w-4 text-blue-400" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{congressTrades.length}</div>
-                            <div className="flex items-center gap-2 text-[10px] mt-1">
-                                <span className="text-green-500 flex items-center"><ArrowUpRight className="h-3 w-3" />{purchaseCount} 买</span>
-                                <span className="text-red-500 flex items-center"><ArrowDownRight className="h-3 w-3" />{saleCount} 卖</span>
+                <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                >
+                    {/* 股票头部 */}
+                    <motion.div variants={itemVariants} className="mb-8">
+                        <div className="flex items-center gap-4 mb-2">
+                            <Badge className="text-xl font-mono px-4 py-1.5 bg-background shadow-sm border border-border/50 text-foreground ring-1 ring-black/5 dark:ring-white/10">{ticker}</Badge>
+                            <h1 className="text-4xl font-bold tracking-tight text-gradient-primary">{companyName}</h1>
+                        </div>
+                        <p className="text-muted-foreground max-w-2xl text-lg">
+                            全方位聚合 {ticker} 的国会山交易、内幕交易与舆情动态。
+                        </p>
+                    </motion.div>
+
+                    {/* 统计卡片 */}
+                    <motion.div variants={itemVariants} className="grid gap-6 md:grid-cols-4 mb-8">
+                        <Card className="glass glass-hover border-l-4 border-l-blue-500 overflow-hidden relative group">
+                            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Gavel className="w-16 h-16" />
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/0 border-emerald-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground">内幕交易</CardTitle>
-                            <TrendingUp className="h-4 w-4 text-emerald-400" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{insiderTrades.length}</div>
-                            <div className="flex items-center gap-2 text-[10px] mt-1">
-                                <span className="text-green-500 flex items-center"><ArrowUpRight className="h-3 w-3" />{insiderBuys} 买</span>
-                                <span className="text-red-500 flex items-center"><ArrowDownRight className="h-3 w-3" />{insiderSells} 卖</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-orange-500/5 to-orange-500/0 border-orange-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground">相关新闻</CardTitle>
-                            <Newspaper className="h-4 w-4 text-orange-400" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{relatedNews.length}</div>
-                            <p className="text-[10px] text-muted-foreground mt-1">涉及 {ticker} 的新闻</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-purple-500/5 to-purple-500/0 border-purple-500/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-muted-foreground">议员关注度</CardTitle>
-                            <Users className="h-4 w-4 text-purple-400" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                {new Set(congressTrades.map(t => t.politician_name)).size}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-1">位议员涉及此股</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* TradingView 图表 */}
-                <Card className="mb-6 overflow-hidden">
-                    <CardContent className="p-0 h-[480px]">
-                        <TradingViewChart ticker={ticker} />
-                    </CardContent>
-                </Card>
-
-                {/* Tab 导航 */}
-                <div className="flex gap-1 bg-muted/30 rounded-lg p-1 mb-6 w-fit">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={cn(
-                                "flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-all",
-                                activeTab === tab.key
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            {tab.icon}
-                            {tab.label}
-                            {tab.key === "congress" && congressTrades.length > 0 && (
-                                <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">{congressTrades.length}</Badge>
-                            )}
-                            {tab.key === "insiders" && insiderTrades.length > 0 && (
-                                <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">{insiderTrades.length}</Badge>
-                            )}
-                            {tab.key === "news" && relatedNews.length > 0 && (
-                                <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">{relatedNews.length}</Badge>
-                            )}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Tab 内容 */}
-                {activeTab === "overview" && (
-                    <div className="grid gap-6 md:grid-cols-2">
-                        {/* 最近国会交易 */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Gavel className="h-4 w-4 text-blue-400" />最近国会交易
-                                </CardTitle>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">国会交易</CardTitle>
+                                <Gavel className="h-4 w-4 text-blue-500" />
                             </CardHeader>
                             <CardContent>
-                                {congressTrades.length === 0 ? (
-                                    <p className="text-center text-muted-foreground py-4 text-sm">暂无国会交易记录</p>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {congressTrades.slice(0, 5).map((t, i) => (
-                                            <div key={t.id ?? i} className="flex items-center justify-between p-3 rounded-lg border border-border/20 hover:bg-muted/10 transition-colors">
-                                                <div>
-                                                    <Link href={`/congress/politician/${encodeURIComponent(t.politician_name || "")}`}
-                                                        className="text-sm font-medium hover:text-primary transition-colors">
-                                                        {t.politician_name}
-                                                    </Link>
-                                                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                                                        {t.politician_party}-{t.politician_state} · {safeDate(t.disclosure_date)}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <Badge variant={t.transaction_type?.includes("purchase") ? "default" : "destructive"} className="text-[10px]">
-                                                        {t.transaction_type?.includes("purchase") ? "买入" : "卖出"}
-                                                    </Badge>
-                                                    <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{formatMoney(t.amount_min)}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {congressTrades.length > 5 && (
-                                            <button onClick={() => setActiveTab("congress")} className="w-full text-center text-xs text-primary hover:underline py-2">
-                                                查看全部 {congressTrades.length} 条 →
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        {/* 最近内幕交易 */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <TrendingUp className="h-4 w-4 text-emerald-400" />最近内幕交易
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {insiderTrades.length === 0 ? (
-                                    <p className="text-center text-muted-foreground py-4 text-sm">暂无内幕交易记录</p>
-                                ) : (
-                                    <div className="space-y-3">
-                                        {insiderTrades.slice(0, 5).map((t: any, i: number) => (
-                                            <div key={t.id ?? i} className="flex items-center justify-between p-3 rounded-lg border border-border/20 hover:bg-muted/10 transition-colors">
-                                                <div>
-                                                    <div className="text-sm font-medium">{t.insider_name}</div>
-                                                    <div className="text-[10px] text-muted-foreground mt-0.5">
-                                                        {t.insider_title} · {safeDate(t.filing_date)}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <Badge variant={t.transaction_type === "purchase" ? "default" : "destructive"} className="text-[10px]">
-                                                        {t.transaction_type === "purchase" ? "买入" : "卖出"}
-                                                    </Badge>
-                                                    <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{formatMoney(t.total_value)}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {insiderTrades.length > 5 && (
-                                            <button onClick={() => setActiveTab("insiders")} className="w-full text-center text-xs text-primary hover:underline py-2">
-                                                查看全部 {insiderTrades.length} 条 →
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
-
-                {activeTab === "congress" && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Gavel className="h-5 w-5 text-blue-400" />国会交易记录</CardTitle>
-                            <CardDescription>{congressTrades.length} 条涉及 {ticker} 的交易</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {congressTrades.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-12">暂无国会交易记录</p>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>披露日期</TableHead>
-                                            <TableHead>议员</TableHead>
-                                            <TableHead>党派/州</TableHead>
-                                            <TableHead>操作</TableHead>
-                                            <TableHead className="text-right">金额范围</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {congressTrades.map((t, i) => (
-                                            <TableRow key={t.id ?? i} className="hover:bg-muted/5">
-                                                <TableCell className="text-muted-foreground font-mono text-xs">{safeDate(t.disclosure_date)}</TableCell>
-                                                <TableCell>
-                                                    <Link href={`/congress/politician/${encodeURIComponent(t.politician_name || "")}`}
-                                                        className="text-primary hover:underline font-medium">
-                                                        {t.politician_name}
-                                                    </Link>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant="outline" className="text-[10px]">
-                                                        {t.politician_party}-{t.politician_state}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={t.transaction_type?.includes("purchase") ? "default" : "destructive"} className="text-xs">
-                                                        {t.transaction_type?.includes("purchase") ? "买入" : "卖出"}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-xs">
-                                                    {formatMoney(t.amount_min)} — {formatMoney(t.amount_max)}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {activeTab === "insiders" && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-emerald-400" />内幕交易记录</CardTitle>
-                            <CardDescription>{insiderTrades.length} 条涉及 {ticker} 的高管交易</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {insiderTrades.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-12">暂无内幕交易记录</p>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>申报日期</TableHead>
-                                            <TableHead>内部人</TableHead>
-                                            <TableHead>职位</TableHead>
-                                            <TableHead>操作</TableHead>
-                                            <TableHead className="text-right">数量</TableHead>
-                                            <TableHead className="text-right">总价值</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {insiderTrades.map((t: any, i: number) => (
-                                            <TableRow key={t.id ?? i} className="hover:bg-muted/5">
-                                                <TableCell className="text-muted-foreground font-mono text-xs">{safeDate(t.filing_date)}</TableCell>
-                                                <TableCell className="font-medium">{t.insider_name}</TableCell>
-                                                <TableCell className="text-muted-foreground text-xs max-w-[200px] truncate">{t.insider_title}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={t.transaction_type === "purchase" ? "default" : "destructive"} className="text-xs">
-                                                        {t.transaction_type === "purchase" ? "买入" : "卖出"}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-xs">{t.shares?.toLocaleString() || "--"}</TableCell>
-                                                <TableCell className="text-right font-mono text-xs font-medium">{formatMoney(t.total_value)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {activeTab === "news" && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2"><Newspaper className="h-5 w-5 text-orange-400" />相关新闻</CardTitle>
-                            <CardDescription>涉及 {ticker} 的新闻动态</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {relatedNews.length === 0 ? (
-                                <p className="text-center text-muted-foreground py-12">暂无相关新闻</p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {relatedNews.map((n: any, i: number) => (
-                                        <div key={n.id ?? i} className="flex items-start gap-4 p-4 rounded-lg border border-border/20 hover:bg-muted/10 transition-colors group">
-                                            <div className="p-2 rounded bg-orange-500/10 shrink-0">
-                                                <Newspaper className="h-4 w-4 text-orange-400" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="text-sm font-medium group-hover:text-primary transition-colors line-clamp-2">
-                                                    {n.url ? (
-                                                        <a href={n.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{n.title}</a>
-                                                    ) : n.title}
-                                                </h3>
-                                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{n.summary || n.content}</p>
-                                                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                                                    <span>{n.source}</span>
-                                                    <span>{safeDate(n.published_at || n.created_at)}</span>
-                                                    <span>{timeAgo(n.published_at || n.created_at)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="text-3xl font-bold">{congressTrades.length}</div>
+                                <div className="flex items-center gap-3 text-xs mt-2 font-medium">
+                                    <span className="text-green-500 flex items-center bg-green-500/10 px-1.5 py-0.5 rounded"><ArrowUpRight className="h-3 w-3 mr-1" />{purchaseCount}</span>
+                                    <span className="text-red-500 flex items-center bg-red-500/10 px-1.5 py-0.5 rounded"><ArrowDownRight className="h-3 w-3 mr-1" />{saleCount}</span>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass glass-hover border-l-4 border-l-emerald-500 overflow-hidden relative group">
+                            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <TrendingUp className="w-16 h-16" />
+                            </div>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">内幕交易</CardTitle>
+                                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-bold">{insiderTrades.length}</div>
+                                <div className="flex items-center gap-3 text-xs mt-2 font-medium">
+                                    <span className="text-green-500 flex items-center bg-green-500/10 px-1.5 py-0.5 rounded"><ArrowUpRight className="h-3 w-3 mr-1" />{insiderBuys}</span>
+                                    <span className="text-red-500 flex items-center bg-red-500/10 px-1.5 py-0.5 rounded"><ArrowDownRight className="h-3 w-3 mr-1" />{insiderSells}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass glass-hover border-l-4 border-l-orange-500 overflow-hidden relative group">
+                            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Newspaper className="w-16 h-16" />
+                            </div>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">相关新闻</CardTitle>
+                                <Newspaper className="h-4 w-4 text-orange-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-bold">{relatedNews.length}</div>
+                                <p className="text-xs text-muted-foreground mt-2">过去 30 天相关报道</p>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="glass glass-hover border-l-4 border-l-purple-500 overflow-hidden relative group">
+                            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <Users className="w-16 h-16" />
+                            </div>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">议员关注</CardTitle>
+                                <Users className="h-4 w-4 text-purple-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-bold">
+                                    {new Set(congressTrades.map(t => t.politician_name)).size}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-2">位议员进行过交易</p>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+
+                    {/* TradingView 图表 */}
+                    <motion.div variants={itemVariants} className="mb-8 p-[1px] rounded-xl bg-gradient-to-b from-white/10 to-transparent shadow-2xl">
+                        <div className="rounded-xl overflow-hidden glass h-[500px]">
+                            <TradingViewChart ticker={ticker} />
+                        </div>
+                    </motion.div>
+
+                    {/* Tab 导航 */}
+                    <motion.div variants={itemVariants} className="mb-6 sticky top-20 z-30 flex justify-center">
+                        <div className="flex gap-1 bg-secondary/80 backdrop-blur-md rounded-full p-1.5 shadow-lg border border-border/50">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key)}
+                                    className={cn(
+                                        "relative flex items-center gap-2 px-5 py-2 text-sm font-medium rounded-full transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                                        activeTab === tab.key
+                                            ? "text-primary-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {activeTab === tab.key && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-foreground rounded-full shadow-md"
+                                            transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                            style={{ zIndex: -1 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-2">
+                                        {tab.icon}
+                                        {tab.label}
+                                        {(tab.key === "congress" && congressTrades.length > 0) && <span className="text-[10px] opacity-80 bg-white/20 px-1.5 rounded-full">{congressTrades.length}</span>}
+                                        {(tab.key === "insiders" && insiderTrades.length > 0) && <span className="text-[10px] opacity-80 bg-white/20 px-1.5 rounded-full">{insiderTrades.length}</span>}
+                                        {(tab.key === "news" && relatedNews.length > 0) && <span className="text-[10px] opacity-80 bg-white/20 px-1.5 rounded-full">{relatedNews.length}</span>}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+
+                    {/* Tab 内容 - Apply AnimatePresence if switching needs animation, or just motion.div entrance */}
+                    <motion.div
+                        key={activeTab}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        {activeTab === "overview" && (
+                            <div className="grid gap-6 md:grid-cols-2">
+                                {/* 最近国会交易 */}
+                                <Card className="glass">
+                                    <CardHeader>
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <Gavel className="h-4 w-4 text-blue-500" />最近国会交易
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {congressTrades.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-50">
+                                                <Gavel className="h-10 w-10 mb-2 stroke-1" />
+                                                <p>暂无记录</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {congressTrades.slice(0, 5).map((t, i) => (
+                                                    <div key={t.id ?? i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 transition-colors border border-transparent hover:border-border/50">
+                                                        <div>
+                                                            <Link href={`/congress/politician/${encodeURIComponent(t.politician_name || "")}`}
+                                                                className="text-sm font-bold hover:text-primary transition-colors">
+                                                                {t.politician_name}
+                                                            </Link>
+                                                            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                                                                <Badge variant="outline" className="text-[10px] h-4 px-1 rounded-sm border-border/40 font-normal">
+                                                                    {t.politician_party}-{t.politician_state}
+                                                                </Badge>
+                                                                <span>{safeDate(t.disclosure_date)}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className={cn("text-xs font-bold px-2 py-0.5 rounded-full inline-block mb-1",
+                                                                t.transaction_type?.includes("purchase") ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                                                                {t.transaction_type?.includes("purchase") ? "买入" : "卖出"}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground font-mono">{formatMoney(t.amount_min)}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {congressTrades.length > 5 && (
+                                                    <button onClick={() => setActiveTab("congress")} className="w-full text-center text-xs text-muted-foreground hover:text-primary py-2 transition-colors">
+                                                        查看全部 {congressTrades.length} 条 →
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                {/* 最近内幕交易 */}
+                                <Card className="glass">
+                                    <CardHeader>
+                                        <CardTitle className="text-base flex items-center gap-2">
+                                            <TrendingUp className="h-4 w-4 text-emerald-500" />最近内幕交易
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {insiderTrades.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-10 text-muted-foreground opacity-50">
+                                                <TrendingUp className="h-10 w-10 mb-2 stroke-1" />
+                                                <p>暂无记录</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {insiderTrades.slice(0, 5).map((t: any, i: number) => (
+                                                    <div key={t.id ?? i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 transition-colors border border-transparent hover:border-border/50">
+                                                        <div>
+                                                            <div className="text-sm font-bold">{t.insider_name}</div>
+                                                            <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">
+                                                                {t.insider_title}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className={cn("text-xs font-bold px-2 py-0.5 rounded-full inline-block mb-1",
+                                                                t.transaction_type === "purchase" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                                                                {t.transaction_type === "purchase" ? "买入" : "卖出"}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground font-mono">{formatMoney(t.total_value)}</div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {insiderTrades.length > 5 && (
+                                                    <button onClick={() => setActiveTab("insiders")} className="w-full text-center text-xs text-muted-foreground hover:text-primary py-2 transition-colors">
+                                                        查看全部 {insiderTrades.length} 条 →
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+
+                        {activeTab === "congress" && (
+                            <Card className="glass">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">国会交易记录</CardTitle>
+                                    <CardDescription>共 {congressTrades.length} 条记录</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="hover:bg-transparent border-dashed">
+                                                <TableHead>披露日期</TableHead>
+                                                <TableHead>议员</TableHead>
+                                                <TableHead>操作</TableHead>
+                                                <TableHead className="text-right">金额范围</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {congressTrades.map((t, i) => (
+                                                <TableRow key={t.id ?? i} className="hover:bg-muted/40 border-border/40">
+                                                    <TableCell className="font-mono text-xs text-muted-foreground">{safeDate(t.disclosure_date)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{t.politician_name}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{t.politician_party}-{t.politician_state}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full",
+                                                            t.transaction_type?.includes("purchase") ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                                                            {t.transaction_type?.includes("purchase") ? "买入" : "卖出"}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-xs">
+                                                        {formatMoney(t.amount_min)} - {formatMoney(t.amount_max)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {activeTab === "insiders" && (
+                            <Card className="glass">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">内幕交易记录</CardTitle>
+                                    <CardDescription>共 {insiderTrades.length} 条记录</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="hover:bg-transparent border-dashed">
+                                                <TableHead>日期</TableHead>
+                                                <TableHead>内部人</TableHead>
+                                                <TableHead>操作</TableHead>
+                                                <TableHead className="text-right">数量</TableHead>
+                                                <TableHead className="text-right">价值</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {insiderTrades.map((t: any, i: number) => (
+                                                <TableRow key={t.id ?? i} className="hover:bg-muted/40 border-border/40">
+                                                    <TableCell className="font-mono text-xs text-muted-foreground">{safeDate(t.filing_date)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{t.insider_name}</span>
+                                                            <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">{t.insider_title}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full",
+                                                            t.transaction_type === "purchase" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
+                                                            {t.transaction_type === "purchase" ? "买入" : "卖出"}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-xs">{t.shares?.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-right font-mono text-xs font-bold text-foreground/80">
+                                                        {formatMoney(t.total_value)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {activeTab === "news" && (
+                            <Card className="glass">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">相关新闻</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-4">
+                                        {relatedNews.map((n: any, i: number) => (
+                                            <motion.div
+                                                key={n.id ?? i}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: i * 0.05 }}
+                                                className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-border/30 bg-secondary/10 hover:bg-secondary/30 transition-all hover:scale-[1.01]"
+                                            >
+                                                <div className="flex-1">
+                                                    <a href={n.url} target="_blank" rel="noopener noreferrer" className="text-base font-semibold hover:text-primary transition-colors line-clamp-2 leading-snug">
+                                                        {n.title}
+                                                    </a>
+                                                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
+                                                        {n.summary || n.content}
+                                                    </p>
+                                                    <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-muted-foreground/70 font-medium">
+                                                        <span className="bg-secondary px-2 py-0.5 rounded text-foreground">{n.source}</span>
+                                                        <span>{safeDate(n.published_at || n.created_at)}</span>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </motion.div>
+                </motion.div>
             </main>
             <Footer />
         </div>

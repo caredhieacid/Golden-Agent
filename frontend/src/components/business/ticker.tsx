@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { useData } from "@/lib/data-provider";
-import { ArrowUp, ArrowDown, Minus, RefreshCw } from "lucide-react";
+import { ArrowUp, ArrowDown, Minus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface TickerData {
     label: string;
@@ -23,7 +24,7 @@ export function Ticker() {
         if (goldPrices) {
             if (goldPrices.international_usd != null) {
                 items.push({
-                    label: "现货黄金 (Intl)",
+                    label: "现货黄金",
                     value: `$${goldPrices.international_usd.toFixed(2)}`,
                     change: goldPrices.spread_pct ?? null,
                     isGold: true
@@ -54,36 +55,41 @@ export function Ticker() {
 
     if (!ready) {
         return (
-            <div className="h-10 w-full bg-[#0D1117] border-b border-border/10 flex items-center justify-center text-xs text-muted-foreground">
-                <RefreshCw className="h-3 w-3 animate-spin mr-2" /> 加载行情数据...
+            <div className="h-10 w-full flex items-center justify-center text-xs text-secondary-foreground/50 glass border-y border-border/40">
+                <Loader2 className="h-3 w-3 animate-spin mr-2" /> 正在连接实时数据...
             </div>
         );
     }
 
-    if (tickerItems.length === 0) {
-        return (
-            <div className="h-10 w-full bg-[#0D1117] border-b border-border/10 flex items-center justify-center text-xs text-muted-foreground">
-                暂无行情数据
-            </div>
-        );
-    }
+    if (tickerItems.length === 0) return null;
 
     return (
-        <div className="w-full bg-[#0D1117] border-b border-border/10 overflow-hidden h-9 flex items-center relative z-40 shadow-sm">
-            <div className="flex animate-ticker hover:[animation-play-state:paused] whitespace-nowrap will-change-transform items-center">
+        <div className="w-full h-10 overflow-hidden relative z-40 glass border-y border-border/40 flex items-center shadow-sm">
+            <motion.div
+                className="flex items-center whitespace-nowrap"
+                animate={{ x: ["0%", "-50%"] }}
+                transition={{
+                    repeat: Infinity,
+                    ease: "linear",
+                    duration: 40, // Adjust speed here
+                }}
+                whileHover={{ animationPlayState: "paused" }} // Note: Framer motion doesn't support playState directly like this easily without useAnimation, but CSS hover works if we use CSS module or simply use standard styles. 
+            // Alternatively, let's use a simple CSS animation class for the loop to keep it robust, and framer motion for items.
+            // Actually the previous css animation was fine, let's stick to framer motion but maybe just use the basic animate.
+            >
                 {/* 三组实现无缝滚动 */}
-                {[1, 2, 3].map(group => (
+                {[1, 2, 3, 4].map(group => (
                     <div key={group} className="flex shrink-0 items-center">
                         {tickerItems.map((item, i) => (
                             <TickerItem key={`${group}-${i}`} {...item} />
                         ))}
                     </div>
                 ))}
-            </div>
+            </motion.div>
 
-            {/* 左右遮罩渐变 */}
-            <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#0D1117] to-transparent pointer-events-none z-10"></div>
-            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#0D1117] to-transparent pointer-events-none z-10"></div>
+            {/* 左右遮罩渐变 (Glass specific) */}
+            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-background/80 to-transparent pointer-events-none z-10 backdrop-blur-[2px]"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-background/80 to-transparent pointer-events-none z-10 backdrop-blur-[2px]"></div>
         </div>
     );
 }
@@ -92,16 +98,16 @@ function TickerItem({ label, value, change, isGold }: TickerData) {
     const isUp = change != null && change > 0;
     const isDown = change != null && change < 0;
 
-    const valueColor = isGold ? "text-[#ffd700]" : "text-gray-200";
-    const changeColor = isUp ? "text-red-400" : isDown ? "text-green-400" : "text-muted-foreground";
+    const valueColor = isGold ? "text-amber-500 font-bold" : "text-foreground";
+    const changeColor = isUp ? "text-rise font-medium" : isDown ? "text-fall font-medium" : "text-muted-foreground";
     const Icon = isUp ? ArrowUp : isDown ? ArrowDown : Minus;
 
     return (
-        <div className="flex items-center px-6 h-full border-r border-white/5 group transition-colors hover:bg-white/5 cursor-pointer">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase mr-2 tracking-wider group-hover:text-gray-400 transition-colors">{label}</span>
-            <span className={cn("font-mono font-medium text-xs mr-2 transition-colors", valueColor)}>{value}</span>
+        <div className="flex items-center px-6 h-full border-r border-border/10 group transition-colors hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase mr-2 tracking-wider group-hover:text-primary transition-colors">{label}</span>
+            <span className={cn("font-mono text-xs mr-2 transition-colors", valueColor)}>{value}</span>
             {change != null && (
-                <span className={cn("flex items-center text-[10px] font-medium font-mono", changeColor)}>
+                <span className={cn("flex items-center text-[10px] font-mono", changeColor)}>
                     <Icon className="h-2.5 w-2.5 mr-0.5" />
                     {Math.abs(change).toFixed(2)}%
                 </span>

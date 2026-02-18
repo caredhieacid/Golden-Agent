@@ -89,7 +89,7 @@ export function Header() {
             })
             .slice(0, 5);
 
-        // 搜美股 (从国会交易和内幕交易中提取 unique tickers)
+        // 搜美股
         const tickerMap = new Map<string, string>();
         for (const t of congress.trades as any[]) {
             if (t.ticker) tickerMap.set(t.ticker.toUpperCase(), t.company_name || t.ticker);
@@ -127,21 +127,21 @@ export function Header() {
     return (
         <header
             className={cn(
-                "sticky top-0 z-50 w-full transition-all duration-300 border-b border-transparent",
-                isScrolled ? "glass-nav py-2" : "bg-transparent py-4 border-transparent"
+                "sticky top-0 z-50 w-full transition-all duration-300",
+                isScrolled ? "glass shadow-sm py-2" : "bg-transparent py-4"
             )}
         >
-            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-50" />
-
             <div className="container flex h-14 items-center justify-between">
                 {/* Logo */}
-                <Link href="/" className="flex items-center gap-2 group relative">
-                    <div className="absolute -inset-2 bg-primary/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative flex h-8 w-8 items-center justify-center rounded bg-primary/10 border border-primary/30 transition-colors group-hover:bg-primary/20 group-hover:border-primary/50 shadow-[0_0_15px_rgba(13,227,242,0.15)]">
-                        <Gavel className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight text-foreground relative">
-                        金策<span className="text-primary text-shadow-glow">智显</span>
+                <Link href="/" className="flex items-center gap-2 group relative z-10">
+                    <motion.div
+                        whileHover={{ rotate: 10, scale: 1.1 }}
+                        className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shadow-lg shadow-primary/10"
+                    >
+                        <Gavel className="h-5 w-5" />
+                    </motion.div>
+                    <span className="text-xl font-bold tracking-tight relative">
+                        金策<span className="text-primary">智显</span>
                     </span>
                 </Link>
 
@@ -152,20 +152,21 @@ export function Header() {
                 </button>
 
                 {/* Desktop Nav */}
-                <nav className="hidden md:flex items-center gap-1 bg-secondary/30 backdrop-blur-sm px-2 py-1.5 rounded-full border border-border/20">
+                <nav className="hidden md:flex items-center gap-1 glass px-1.5 py-1.5 rounded-full mx-auto absolute left-1/2 -translate-x-1/2">
                     {navItems.map((item) => (
                         <Link key={item.href} href={item.href}
                             className={cn(
-                                "relative px-4 py-1.5 text-sm font-medium transition-colors hover:text-primary",
-                                pathname === item.href ? "text-primary" : "text-muted-foreground"
+                                "relative px-4 py-2 text-sm font-medium transition-colors rounded-full hover:text-foreground",
+                                pathname === item.href ? "text-primary-foreground" : "text-muted-foreground"
                             )}>
                             {pathname === item.href && (
                                 <motion.div layoutId="nav-pill"
-                                    className="absolute inset-0 bg-background/80 rounded-full shadow-sm border border-border/40"
+                                    className="absolute inset-0 bg-primary rounded-full shadow-lg shadow-primary/25"
                                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                                     style={{ zIndex: -1 }} />
                             )}
                             <span className="relative z-10 flex items-center gap-1.5">
+                                <item.icon className="h-4 w-4" />
                                 {item.name}
                             </span>
                         </Link>
@@ -173,42 +174,44 @@ export function Header() {
                 </nav>
 
                 {/* Right Side: Search + Actions */}
-                <div className="hidden md:flex items-center gap-4">
+                <div className="hidden md:flex items-center gap-3 relative z-10">
                     <div className="relative group" ref={searchRef}>
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                         <Input type="search"
                             ref={inputRef}
-                            placeholder="搜索股票 / 议员..."
-                            className="w-56 pl-10 h-9 bg-secondary/30 border-border/30 focus-visible:ring-primary/30 transition-all focus:w-72 focus:bg-background/80 font-sans text-sm"
+                            placeholder="搜索..."
+                            className="w-40 pl-9 h-9 bg-secondary/50 border-transparent hover:bg-secondary/80 focus:bg-background focus:w-64 focus:shadow-lg focus:ring-2 focus:ring-primary/20 transition-all duration-300 rounded-full text-sm placeholder:text-muted-foreground/50"
                             value={searchQuery}
                             onChange={e => handleSearchInput(e.target.value)}
                             onFocus={() => { if (searchResults) setSearchOpen(true); }}
                         />
-                        <div className="absolute right-3 top-2.5 hidden lg:flex items-center gap-1 pointer-events-none">
-                            <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-1 rounded bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100 border border-border/20">
-                                <span className="text-xs">⌘</span>K
+                        <div className="absolute right-3 top-2.5 flex items-center pointer-events-none group-focus-within:opacity-0 transition-opacity">
+                            <kbd className="inline-flex h-4 items-center gap-1 rounded bg-background/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-70">
+                                ⌘K
                             </kbd>
                         </div>
 
-                        {/* 搜索结果下拉 — 即时本地搜索 */}
+                        {/* 搜索结果下拉 */}
                         <AnimatePresence>
                             {searchOpen && searchResults && (
-                                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-md border border-border/40 rounded-lg shadow-xl overflow-hidden z-50 min-w-[320px]">
+                                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="absolute top-full right-0 mt-3 bg-background/80 backdrop-blur-xl border border-border/40 rounded-2xl shadow-2xl overflow-hidden z-50 min-w-[320px] p-2">
+
                                     {/* 议员结果 */}
                                     {searchResults.politicians?.length > 0 && (
-                                        <div className="p-2">
-                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pb-1 font-medium">议员</div>
+                                        <div className="mb-2">
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 py-1 font-semibold opacity-70">议员</div>
                                             {searchResults.politicians.map((p: any) => (
                                                 <button key={p.id} onClick={() => {
                                                     router.push(`/congress/politician/${encodeURIComponent(p.name)}`);
                                                     setSearchOpen(false); setSearchQuery("");
                                                 }}
-                                                    className="w-full text-left px-2 py-1.5 rounded hover:bg-secondary/50 flex items-center gap-2 text-sm">
-                                                    <span className={cn("w-2 h-2 rounded-full",
-                                                        p.party === "D" ? "bg-blue-400" : p.party === "R" ? "bg-red-400" : "bg-gray-400")} />
+                                                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-accent/50 flex items-center gap-3 text-sm group transition-all">
+                                                    <div className={cn("w-2 h-2 rounded-full ring-2 ring-transparent group-hover:ring-offset-1 transition-all",
+                                                        p.party === "D" ? "bg-blue-500 group-hover:ring-blue-500" : p.party === "R" ? "bg-red-500 group-hover:ring-red-500" : "bg-gray-400")} />
                                                     <span className="font-medium">{p.name}</span>
-                                                    <span className="text-xs text-muted-foreground ml-auto">{p.party} · {p.state} · {p.chamber}</span>
+                                                    <span className="text-xs text-muted-foreground ml-auto opacity-70">{p.chamber === "Senate" ? "参议院" : "众议院"}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -216,16 +219,16 @@ export function Header() {
 
                                     {/* A 股结果 */}
                                     {searchResults.stocks?.length > 0 && (
-                                        <div className="p-2 border-t border-border/20">
-                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pb-1 font-medium">A 股</div>
+                                        <div className="mb-2">
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 py-1 font-semibold opacity-70 border-t border-dashed border-border/40 pt-2">A 股</div>
                                             {searchResults.stocks.map((s: any) => (
                                                 <div key={s.code}
-                                                    className="px-2 py-1.5 rounded hover:bg-secondary/50 flex items-center gap-2 text-sm">
-                                                    <span className="font-mono font-bold text-primary">{s.code}</span>
+                                                    className="px-3 py-2 rounded-xl hover:bg-accent/50 flex items-center gap-3 text-sm cursor-default transition-all">
+                                                    <span className="font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded text-xs">{s.code}</span>
                                                     <span>{s.name}</span>
                                                     {s.change_pct != null && (
-                                                        <span className={cn("ml-auto text-xs font-medium",
-                                                            s.change_pct >= 0 ? "text-green-500" : "text-red-500")}>
+                                                        <span className={cn("ml-auto text-xs font-bold px-1.5 py-0.5 rounded",
+                                                            s.change_pct >= 0 ? "bg-red-500/10 text-red-500" : "bg-green-500/10 text-green-500")}>
                                                             {s.change_pct >= 0 ? "+" : ""}{s.change_pct?.toFixed(2)}%
                                                         </span>
                                                     )}
@@ -236,16 +239,16 @@ export function Header() {
 
                                     {/* 美股结果 */}
                                     {searchResults.insider_stocks?.length > 0 && (
-                                        <div className="p-2 border-t border-border/20">
-                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pb-1 font-medium">美股</div>
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 py-1 font-semibold opacity-70 border-t border-dashed border-border/40 pt-2">美股</div>
                                             {searchResults.insider_stocks.map((s: any) => (
                                                 <button key={s.ticker} onClick={() => {
                                                     router.push(`/stock/${s.ticker}`);
                                                     setSearchOpen(false); setSearchQuery("");
                                                 }}
-                                                    className="w-full text-left px-2 py-1.5 rounded hover:bg-secondary/50 flex items-center gap-2 text-sm">
-                                                    <span className="font-mono font-bold text-primary">${s.ticker}</span>
-                                                    <span className="text-muted-foreground">{s.company_name}</span>
+                                                    className="w-full text-left px-3 py-2 rounded-xl hover:bg-accent/50 flex items-center gap-3 text-sm group transition-all">
+                                                    <span className="font-mono font-bold text-foreground bg-secondary px-1.5 py-0.5 rounded text-xs group-hover:bg-primary group-hover:text-white transition-colors">${s.ticker}</span>
+                                                    <span className="text-muted-foreground text-xs truncate max-w-[120px]">{s.company_name}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -253,8 +256,9 @@ export function Header() {
 
                                     {/* 无结果 */}
                                     {!searchResults.politicians?.length && !searchResults.stocks?.length && !searchResults.insider_stocks?.length && (
-                                        <div className="p-4 text-center text-sm text-muted-foreground">
-                                            没有找到 &ldquo;{searchQuery}&rdquo; 相关结果
+                                        <div className="p-6 text-center text-sm text-muted-foreground">
+                                            <Search className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                            未找到 &ldquo;{searchQuery}&rdquo;
                                         </div>
                                     )}
                                 </motion.div>
@@ -263,11 +267,11 @@ export function Header() {
                     </div>
 
                     <Button variant="ghost" size="sm"
-                        className="text-primary hover:bg-primary/10 hover:text-primary font-medium">
+                        className="text-muted-foreground hover:text-foreground font-medium rounded-full px-4 hover:bg-secondary">
                         登录
                     </Button>
                     <Button size="sm"
-                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-medium shadow-[0_0_15px_rgba(13,227,242,0.3)] border border-primary/20">
+                        className="rounded-full px-5 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/25 font-semibold">
                         注册
                     </Button>
                 </div>
@@ -278,19 +282,19 @@ export function Header() {
                 {mobileMenuOpen && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="md:hidden border-b border-border/40 bg-background/95 backdrop-blur-md">
-                        <div className="container py-4 space-y-4">
+                        className="md:hidden glass border-t border-border/40 absolute top-full w-full left-0 overflow-hidden">
+                        <div className="container py-4 space-y-2">
                             {navItems.map((item) => (
                                 <Link key={item.href} href={item.href}
                                     onClick={() => setMobileMenuOpen(false)}
-                                    className="flex items-center gap-2 text-sm font-medium py-2 text-foreground/80 hover:text-primary">
+                                    className="flex items-center gap-3 text-sm font-medium py-3 px-4 rounded-xl hover:bg-accent/50 text-foreground/80 hover:text-primary transition-colors">
                                     <item.icon className="h-4 w-4" />
                                     {item.name}
                                 </Link>
                             ))}
-                            <div className="pt-4 border-t border-border/40">
-                                <Button className="w-full bg-primary/20 text-primary border border-primary/50 hover:bg-primary/30">
-                                    登录 / 注册
+                            <div className="pt-4 border-t border-dashed border-border/40 mt-2 px-4">
+                                <Button className="w-full rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                                    注册 / 登录
                                 </Button>
                             </div>
                         </div>
