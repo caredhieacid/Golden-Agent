@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:../data/golden-agent.db"
+  url      = "file:./golden-agent.db"
 }
 
 // ============================================

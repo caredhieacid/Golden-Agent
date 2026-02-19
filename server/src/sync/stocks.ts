@@ -89,26 +89,43 @@ export async function syncStockIndices(): Promise<void> {
 
 export async function syncSectors(): Promise<void> {
     try {
-        // 东方财富板块排行 API
-        const url = "https://push2.eastmoney.com/api/qt/clist/get?" +
-            "pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f3" +
+        const fields = "f14,f3,f128,f140,f136";
+        const base = "https://push2.eastmoney.com/api/qt/clist/get?";
+        const gainersUrl = base +
+            "pn=1&pz=25&po=1&np=1&fltt=2&invt=2&fid=f3" +
             "&fs=m:90+t:3" +
-            "&fields=f14,f3,f128,f140,f136";
-        // f14=板块名称, f3=涨跌幅, f128=领涨股, f140=领涨股涨跌幅, f136=领涨股代码
+            `&fields=${fields}`;
+        const losersUrl = base +
+            "pn=1&pz=25&po=0&np=1&fltt=2&invt=2&fid=f3" +
+            "&fs=m:90+t:3" +
+            `&fields=${fields}`;
 
-        const res = await fetch(url);
-        const json = await res.json() as any;
-        const list: any[] = json?.data?.diff ?? [];
+        const [gainersJson, losersJson] = await Promise.all([
+            fetch(gainersUrl).then(r => r.json() as any),
+            fetch(losersUrl).then(r => r.json() as any),
+        ]);
+
+        const gainers: any[] = gainersJson?.data?.diff ?? [];
+        const losers: any[] = losersJson?.data?.diff ?? [];
+        const list = [...gainers, ...losers];
 
         // 先清空旧数据再插入
         await prisma.sector.deleteMany();
 
-        const rows = list.slice(0, 20).map((item: any) => ({
+        const seen = new Set<string>();
+        const rows = list
+            .map((item: any) => ({
             name: String(item.f14 ?? ""),
             changePct: typeof item.f3 === "number" ? item.f3 : null,
             leaderStock: item.f128 ? String(item.f128) : null,
             leaderChangePct: typeof item.f140 === "number" ? item.f140 : null,
-        }));
+            }))
+            .filter(r => {
+                const key = r.name.trim();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
 
         if (rows.length > 0) {
             await prisma.sector.createMany({ data: rows });
@@ -126,7 +143,7 @@ export async function syncHotStocks(): Promise<void> {
     try {
         // 东方财富个股涨幅排行 (A 股全部，取前 20 只)
         const url = "https://push2.eastmoney.com/api/qt/clist/get?" +
-            "pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f3" +
+            "pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3" +
             "&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048" +
             "&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f8,f9";
         // f12=代码 f14=名称 f2=最新价 f3=涨跌幅 f4=涨跌额
@@ -139,7 +156,7 @@ export async function syncHotStocks(): Promise<void> {
         // 清空旧数据再插入
         await prisma.hotStock.deleteMany();
 
-        const rows = list.slice(0, 20).map((item: any) => ({
+        const rows = list.slice(0, 50).map((item: any) => ({
             code: String(item.f12 ?? ""),
             name: String(item.f14 ?? ""),
             price: typeof item.f2 === "number" ? item.f2 : null,

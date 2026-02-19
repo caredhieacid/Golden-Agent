@@ -18,6 +18,10 @@ export default function RootLayout() {
             duration: 1.2,
             easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
             touchMultiplier: 2,
+            prevent: (node) => {
+                const el = node as HTMLElement | null;
+                return !!el?.closest?.("[data-lenis-prevent],[data-lenis-prevent-wheel],[data-lenis-prevent-touch]");
+            },
         });
         lenisRef.current = lenis;
 

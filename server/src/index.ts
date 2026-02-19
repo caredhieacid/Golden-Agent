@@ -79,7 +79,7 @@ app.get("/api/bulk", async (_req, res) => {
             prisma.goldDaily.findMany({ orderBy: { date: "desc" }, take: 365 }),
             prisma.stockIndex.findMany(),
             prisma.sector.findMany({ orderBy: { changePct: "desc" } }),
-            prisma.hotStock.findMany({ take: 20 }),
+            prisma.hotStock.findMany({ take: 50 }),
             prisma.congressTrade.findMany({ orderBy: { disclosureDate: "desc" }, take: 100 }),
             prisma.politician.findMany({
                 include: { trades: { select: { id: true } } },
@@ -302,7 +302,7 @@ async function fetchSectorsForSSE() {
 }
 
 async function fetchHotStocksForSSE() {
-    const data = await prisma.hotStock.findMany({ take: 20 });
+    const data = await prisma.hotStock.findMany({ take: 50 });
     return data.map(h => ({
         code: h.code, name: h.name,
         price: h.price, change_pct: h.changePct,

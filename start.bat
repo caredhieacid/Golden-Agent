@@ -22,6 +22,8 @@ if not exist node_modules (
 ) else (
     echo      后端 node_modules 已存在，跳过安装
 )
+echo      正在初始化数据库 (Prisma db push)...
+call npm run db:push
 cd ..
 
 echo [2/3] 安装/检查前端依赖 (Frontend)...

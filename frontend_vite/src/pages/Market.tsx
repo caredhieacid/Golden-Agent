@@ -18,6 +18,31 @@ function fmt(v: number | null | undefined, decimals = 2): string {
     return v.toFixed(decimals);
 }
 
+function toNumber(v: unknown): number | null {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string") {
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : null;
+    }
+    return null;
+}
+
+function clamp(v: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, v));
+}
+
+function fmtPct(v: number | null | undefined): string {
+    if (v == null) return "--";
+    const abs = Math.abs(v);
+    const decimals = abs > 0 && abs < 0.01 ? 3 : 2;
+    return v.toFixed(decimals);
+}
+
+function truncateLabel(label: string, boxWidth: number): string {
+    const maxChars = Math.max(4, Math.floor(boxWidth / 12));
+    return label.length > maxChars ? `${label.slice(0, Math.max(1, maxChars - 1))}…` : label;
+}
+
 function amountYi(v: number | null | undefined): string {
     if (v == null) return "--";
     return (v / 100000000).toFixed(1);
@@ -45,6 +70,36 @@ const itemVariants = {
 /* ─── Custom Treemap Content ─── */
 const CustomizedContent = (props: any) => {
     const { depth, x, y, width, height, payload, name } = props;
+    const node = payload ?? {};
+    const data =
+        node?.payload?.payload ??
+        node?.payload ??
+        node?.data?.payload ??
+        node?.data ??
+        node;
+    const changePct = toNumber(
+        data?.change_pct ??
+        data?.payload?.change_pct ??
+        data?.data?.change_pct ??
+        node?.change_pct
+    );
+    const abs = changePct == null ? 0 : Math.abs(changePct);
+    const isNeutral = changePct == null || abs < 0.01;
+    const alpha = clamp(0.25 + Math.min(abs, 5) * 0.12, 0.25, 0.9);
+    const fill = isNeutral
+        ? "rgba(255, 255, 255, 0.06)"
+        : changePct >= 0
+            ? `rgba(239, 68, 68, ${alpha})`
+            : `rgba(34, 197, 94, ${alpha})`;
+    const strokeWidth = depth <= 1 ? 2 : 1;
+    const strokeOpacity = depth <= 1 ? 1 : 0.5;
+    const showLabel = depth >= 2 && width > 18 && height > 12 && typeof name === "string" && name.length > 0;
+    const showPct = depth >= 2 && width > 56 && height > 32 && changePct != null && abs >= 0.01;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const label = typeof name === "string" ? truncateLabel(name, width) : "";
+    const labelFontSize = Math.max(7, Math.min(13, Math.floor(height / 8)));
+    const pctFontSize = Math.max(8, Math.min(11, Math.floor(height / 10)));
 
     return (
         <g>
@@ -54,35 +109,49 @@ const CustomizedContent = (props: any) => {
                 width={width}
                 height={height}
                 style={{
-                    fill: payload.fill,
+                    fill,
                     stroke: "rgba(255,255,255,0.1)",
-                    strokeWidth: 2 / (depth + 1e-10),
-                    strokeOpacity: 1 / (depth + 1e-10),
+                    strokeWidth,
+                    strokeOpacity,
                 }}
             />
-            {width > 50 && height > 30 && (
+            {showLabel && (
                 <text
-                    x={x + width / 2}
-                    y={y + height / 2}
+                    x={Math.round(cx)}
+                    y={Math.round(cy) - (showPct ? 8 : 0)}
                     textAnchor="middle"
+                    dominantBaseline="central"
                     fill="#fff"
-                    fontSize={12}
-                    dy={-6}
-                    style={{ fontWeight: "bold", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+                    fontSize={labelFontSize}
+                    textRendering="geometricPrecision"
+                    style={{
+                        fontWeight: 700,
+                        paintOrder: "stroke",
+                        stroke: "rgba(0,0,0,0.65)",
+                        strokeWidth: width < 48 ? 2 : 3,
+                        strokeLinejoin: "round",
+                    }}
                 >
-                    {name}
+                    {label}
                 </text>
             )}
-            {width > 50 && height > 30 && (
+            {showPct && (
                 <text
-                    x={x + width / 2}
-                    y={y + height / 2}
+                    x={Math.round(cx)}
+                    y={Math.round(cy) + 10}
                     textAnchor="middle"
+                    dominantBaseline="central"
                     fill="rgba(255,255,255,0.8)"
-                    fontSize={10}
-                    dy={8}
+                    fontSize={pctFontSize}
+                    textRendering="geometricPrecision"
+                    style={{
+                        paintOrder: "stroke",
+                        stroke: "rgba(0,0,0,0.6)",
+                        strokeWidth: 2,
+                        strokeLinejoin: "round",
+                    }}
                 >
-                    {payload.change_pct > 0 ? "+" : ""}{fmt(payload.change_pct)}%
+                    {changePct > 0 ? "+" : ""}{fmtPct(changePct)}%
                 </text>
             )}
         </g>
@@ -102,11 +171,11 @@ export default function Market() {
             name: "Market",
             children: sectors.map((s) => ({
                 name: s.name,
-                size: Math.abs(s.change_pct || 0) + 0.5, // Mock size for visibility
-                change_pct: s.change_pct || 0,
-                fill: (s.change_pct || 0) >= 0 ?
-                    `rgba(239, 68, 68, ${Math.min(0.3 + (s.change_pct || 0) * 0.1, 0.9)})` : // Red for positive (CN)
-                    `rgba(34, 197, 94, ${Math.min(0.3 + Math.abs(s.change_pct || 0) * 0.1, 0.9)})`   // Green for negative
+                size: Math.abs(toNumber(s.change_pct) ?? 0) + 0.5,
+                change_pct: toNumber(s.change_pct),
+                fill: (toNumber(s.change_pct) ?? 0) >= 0 ?
+                    `rgba(239, 68, 68, ${Math.min(0.25 + (toNumber(s.change_pct) ?? 0) * 0.08, 0.85)})` :
+                    `rgba(34, 197, 94, ${Math.min(0.25 + Math.abs(toNumber(s.change_pct) ?? 0) * 0.08, 0.85)})`
             }))
         }];
     }, [sectors]);
@@ -178,10 +247,10 @@ export default function Market() {
                     )}
                 </motion.div>
 
-                <div className="grid gap-6 md:grid-cols-7 h-full">
+                <div className="grid gap-6 md:grid-cols-7">
                     {/* 热门板块 Treemap */}
-                    <motion.div variants={itemVariants} className="md:col-span-3 lg:col-span-3 flex flex-col h-[500px]">
-                        <Card className="glass-card border-none bg-black/20 flex-1 flex flex-col h-full">
+                    <motion.div variants={itemVariants} className="md:col-span-3 lg:col-span-3 flex flex-col min-h-0 h-[420px] sm:h-[460px] lg:h-[500px]">
+                        <Card className="glass-card border-none bg-black/20 flex-1 flex flex-col min-h-0 h-full">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <BarChart2 className="h-5 w-5 text-primary" /> 板块热力图
@@ -194,20 +263,27 @@ export default function Market() {
                                         <Treemap
                                             data={treemapData}
                                             dataKey="size"
-                                            stroke="#fff"
-                                            fill="#8884d8"
+                                            isAnimationActive={false}
+                                            animationDuration={0}
                                             content={<CustomizedContent />}
                                         >
                                             <RechartsTooltip
                                                 content={({ active, payload }) => {
                                                     if (active && payload && payload.length) {
                                                         const data = payload[0].payload;
+                                                        const v = toNumber(data.change_pct);
                                                         return (
                                                             <div className="glass-panel p-3 rounded-xl border border-white/10 shadow-xl bg-[#09090b]/90 backdrop-blur-md">
                                                                 <p className="font-bold text-white mb-1">{data.name}</p>
-                                                                <p className={cn("text-sm font-mono", data.change_pct > 0 ? "text-red-400" : "text-green-400")}>
-                                                                    Change: {data.change_pct > 0 ? "+" : ""}{fmt(data.change_pct)}%
-                                                                </p>
+                                                                {v != null ? (
+                                                                    <p className={cn("text-sm font-mono", v > 0 ? "text-red-400" : "text-green-400")}>
+                                                                        Change: {v > 0 ? "+" : ""}{fmtPct(v)}%
+                                                                    </p>
+                                                                ) : (
+                                                                    <p className="text-sm font-mono text-muted-foreground">
+                                                                        Change: --
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         );
                                                     }
@@ -226,8 +302,8 @@ export default function Market() {
                     </motion.div>
 
                     {/* 个股排行 */}
-                    <motion.div variants={itemVariants} className="md:col-span-4 lg:col-span-4 h-[500px] flex flex-col">
-                        <Card className="glass-card border-none bg-black/20 flex-1 flex flex-col">
+                    <motion.div variants={itemVariants} className="md:col-span-4 lg:col-span-4 flex flex-col min-h-0 h-[420px] sm:h-[460px] lg:h-[500px]">
+                        <Card className="glass-card border-none bg-black/20 flex-1 flex flex-col min-h-0">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <Activity className="h-5 w-5 text-red-500" /> 市场异动
@@ -239,7 +315,7 @@ export default function Market() {
                                     </Badge>
                                 </div>
                             </CardHeader>
-                            <CardContent className="p-0 overflow-auto no-scrollbar flex-1">
+                            <CardContent className="p-0 flex-1 min-h-0 overflow-auto overscroll-contain no-scrollbar" data-lenis-prevent>
                                 <Table>
                                     <TableHeader className="bg-white/5 sticky top-0 backdrop-blur-md">
                                         <TableRow className="border-white/5 hover:bg-transparent">
