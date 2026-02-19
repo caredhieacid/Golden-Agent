@@ -14,37 +14,48 @@ export function MarketPanorama() {
     const [activeTab, setActiveTab] = useState<"heatmap" | "gold">("heatmap");
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Mock Data if empty
-    const sectors = useMemo(() => {
+    const fallbackSectors = useMemo(() => ([
+        { name: "TMT 科技", change_pct: 2.45, leader_stock: "N/A" },
+        { name: "新能源", change_pct: 1.12, leader_stock: "N/A" },
+        { name: "半导体", change_pct: 0.85, leader_stock: "N/A" },
+        { name: "医药生物", change_pct: -0.05, leader_stock: "N/A" },
+        { name: "消费电子", change_pct: -0.15, leader_stock: "N/A" },
+        { name: "房地产", change_pct: -1.2, leader_stock: "N/A" },
+        { name: "银行", change_pct: 0.1, leader_stock: "N/A" },
+    ] as Sector[]), []);
+
+    const displaySectors = useMemo(() => {
         const data = stocks.sectors as Sector[];
-        if (data.length === 0) {
-            return [
-                { name: "TMT 科技", change_pct: 2.45, leader_stock: "N/A" },
-                { name: "新能源", change_pct: 1.12, leader_stock: "N/A" },
-                { name: "半导体", change_pct: 0.85, leader_stock: "N/A" },
-                { name: "医药生物", change_pct: -0.05, leader_stock: "N/A" },
-                { name: "消费电子", change_pct: -0.15, leader_stock: "N/A" },
-                { name: "房地产", change_pct: -1.2, leader_stock: "N/A" },
-                { name: "银行", change_pct: 0.1, leader_stock: "N/A" },
-            ] as Sector[];
+        if (data.length >= 7) return data.slice(0, 7);
+        const filled = [...data];
+        for (const s of fallbackSectors) {
+            if (filled.length >= 7) break;
+            filled.push(s);
         }
-        return data;
-    }, [stocks.sectors]);
+        return filled;
+    }, [fallbackSectors, stocks.sectors]);
 
     const goldHistory = gold.history;
 
     useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
         const ctx = gsap.context(() => {
-            gsap.from(".panorama-item", {
+            const q = gsap.utils.selector(el);
+            gsap.from(q(".panorama-item"), {
                 opacity: 0,
                 y: 20,
                 stagger: 0.1,
                 duration: 0.8,
-                ease: "power2.out"
+                ease: "power2.out",
+                clearProps: "opacity,transform",
+                overwrite: "auto",
+                immediateRender: false
             });
-        }, containerRef);
+        }, el);
         return () => ctx.revert();
-    }, [activeTab, sectors]); // Add sectors to animate when data arrives
+    }, [activeTab, displaySectors]);
 
     const getBlockColor = (change: number) => {
         if (change > 1.5) return "bg-gradient-to-br from-red-500/20 to-red-600/10 border-red-500/30 text-red-100 hover:from-red-500/30";
@@ -109,51 +120,49 @@ export function MarketPanorama() {
                             className="w-full h-full"
                         >
                             <div className="w-full h-full grid grid-cols-4 grid-rows-3 gap-3">
-                                {sectors.length >= 7 && (
-                                    <>
-                                        {/* Main Leaders */}
-                                        <div className={cn("panorama-item row-span-2 col-span-2 rounded-2xl border flex flex-col items-center justify-center p-6 cursor-pointer transition-all shadow-lg relative group overflow-hidden", getBlockColor(sectors[0].change_pct ?? 0))}>
+                                <>
+                                    {/* Main Leaders */}
+                                    <div className={cn("panorama-item row-span-2 col-span-2 rounded-2xl border flex flex-col items-center justify-center p-6 cursor-pointer transition-all shadow-lg relative group overflow-hidden", getBlockColor(displaySectors[0].change_pct ?? 0))}>
                                             <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <ArrowUpRight className="h-5 w-5" />
                                             </div>
-                                            <span className="text-3xl font-bold tracking-tight relative z-10">{sectors[0].name}</span>
+                                            <span className="text-3xl font-bold tracking-tight relative z-10">{displaySectors[0].name}</span>
                                             <div className="flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-black/20 backdrop-blur-sm border border-white/5">
-                                                <span className="text-lg font-mono font-bold">{(sectors[0].change_pct ?? 0) > 0 ? "+" : ""}{sectors[0].change_pct ?? 0}%</span>
+                                                <span className="text-lg font-mono font-bold">{(displaySectors[0].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[0].change_pct ?? 0}%</span>
                                             </div>
-                                        </div>
+                                    </div>
 
-                                        <div className={cn("panorama-item row-span-2 col-span-1 rounded-2xl border flex flex-col items-center justify-center p-4 cursor-pointer transition-all relative group", getBlockColor(sectors[1].change_pct ?? 0))}>
-                                            <span className="text-xl font-bold">{sectors[1].name}</span>
-                                            <span className="text-sm font-mono font-bold mt-1 opacity-80">{(sectors[1].change_pct ?? 0) > 0 ? "+" : ""}{sectors[1].change_pct ?? 0}%</span>
-                                        </div>
+                                    <div className={cn("panorama-item row-span-2 col-span-1 rounded-2xl border flex flex-col items-center justify-center p-4 cursor-pointer transition-all relative group", getBlockColor(displaySectors[1].change_pct ?? 0))}>
+                                        <span className="text-xl font-bold">{displaySectors[1].name}</span>
+                                        <span className="text-sm font-mono font-bold mt-1 opacity-80">{(displaySectors[1].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[1].change_pct ?? 0}%</span>
+                                    </div>
 
-                                        <div className={cn("panorama-item col-span-1 row-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(sectors[2].change_pct ?? 0))}>
-                                            <span className="text-sm font-bold">{sectors[2].name}</span>
-                                            <span className="text-xs font-mono mt-0.5 opacity-80">{(sectors[2].change_pct ?? 0) > 0 ? "+" : ""}{sectors[2].change_pct ?? 0}%</span>
-                                        </div>
+                                    <div className={cn("panorama-item col-span-1 row-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(displaySectors[2].change_pct ?? 0))}>
+                                        <span className="text-sm font-bold">{displaySectors[2].name}</span>
+                                        <span className="text-xs font-mono mt-0.5 opacity-80">{(displaySectors[2].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[2].change_pct ?? 0}%</span>
+                                    </div>
 
-                                        <div className={cn("panorama-item col-span-1 row-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(sectors[3].change_pct ?? 0))}>
-                                            <span className="text-sm font-bold">{sectors[3].name}</span>
-                                            <span className="text-xs font-mono mt-0.5 opacity-80">{(sectors[3].change_pct ?? 0) > 0 ? "+" : ""}{sectors[3].change_pct ?? 0}%</span>
-                                        </div>
+                                    <div className={cn("panorama-item col-span-1 row-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(displaySectors[3].change_pct ?? 0))}>
+                                        <span className="text-sm font-bold">{displaySectors[3].name}</span>
+                                        <span className="text-xs font-mono mt-0.5 opacity-80">{(displaySectors[3].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[3].change_pct ?? 0}%</span>
+                                    </div>
 
-                                        {/* Bottom Row */}
-                                        <div className={cn("panorama-item col-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(sectors[4].change_pct ?? 0))}>
-                                            <span className="text-sm font-bold">{sectors[4].name}</span>
-                                            <span className="text-xs font-mono opacity-80">{(sectors[4].change_pct ?? 0) > 0 ? "+" : ""}{sectors[4].change_pct ?? 0}%</span>
+                                    {/* Bottom Row */}
+                                    <div className={cn("panorama-item col-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(displaySectors[4].change_pct ?? 0))}>
+                                        <span className="text-sm font-bold">{displaySectors[4].name}</span>
+                                        <span className="text-xs font-mono opacity-80">{(displaySectors[4].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[4].change_pct ?? 0}%</span>
+                                    </div>
+                                    <div className={cn("panorama-item col-span-2 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(displaySectors[5].change_pct ?? 0))}>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-lg font-bold">{displaySectors[5].name}</span>
+                                            <span className="text-sm font-mono opacity-80">{(displaySectors[5].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[5].change_pct ?? 0}%</span>
                                         </div>
-                                        <div className={cn("panorama-item col-span-2 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(sectors[5].change_pct ?? 0))}>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-lg font-bold">{sectors[5].name}</span>
-                                                <span className="text-sm font-mono opacity-80">{(sectors[5].change_pct ?? 0) > 0 ? "+" : ""}{sectors[5].change_pct ?? 0}%</span>
-                                            </div>
-                                        </div>
-                                        <div className={cn("panorama-item col-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(sectors[6].change_pct ?? 0))}>
-                                            <span className="text-sm font-bold">{sectors[6].name}</span>
-                                            <span className="text-xs font-mono opacity-80">{(sectors[6].change_pct ?? 0) > 0 ? "+" : ""}{sectors[6].change_pct ?? 0}%</span>
-                                        </div>
-                                    </>
-                                )}
+                                    </div>
+                                    <div className={cn("panorama-item col-span-1 rounded-2xl border flex flex-col items-center justify-center p-3 cursor-pointer transition-all", getBlockColor(displaySectors[6].change_pct ?? 0))}>
+                                        <span className="text-sm font-bold">{displaySectors[6].name}</span>
+                                        <span className="text-xs font-mono opacity-80">{(displaySectors[6].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[6].change_pct ?? 0}%</span>
+                                    </div>
+                                </>
                             </div>
                         </motion.div>
                     ) : (

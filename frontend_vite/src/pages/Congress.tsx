@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/lib/data-provider";
 import type { Trade } from "@/types";
@@ -10,7 +10,7 @@ import { Search, RefreshCw, Filter, ArrowUpRight, ArrowDownRight, DollarSign, Ca
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, formatChamber, formatParty, formatPoliticianDisplayName, formatUsState } from "@/lib/utils";
 
 function safeDate(d: string | null | undefined, fmt = "MM/dd"): string {
     if (!d) return "--";
@@ -33,6 +33,7 @@ export default function Congress() {
     const [partyFilter, setPartyFilter] = useState<"all" | "D" | "R">("all");
     const [chamberFilter, setChamberFilter] = useState<"all" | "House" | "Senate">("all");
     const [typeFilter, setTypeFilter] = useState<"all" | "purchase" | "sale">("all");
+    const [visibleCount, setVisibleCount] = useState(50);
 
     // Memoized Filtered Data
     const filteredTrades = useMemo(() => {
@@ -40,13 +41,18 @@ export default function Congress() {
             const matchesSearch = (t.politician_name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (t.ticker ?? "").toLowerCase().includes(searchTerm.toLowerCase());
             const matchesParty = partyFilter === "all" || t.politician_party === partyFilter;
-            const matchesChamber = chamberFilter === "all" || t.chamber === chamberFilter;
+            const chamber = (t.chamber ?? "").toLowerCase();
+            const matchesChamber = chamberFilter === "all" || (chamberFilter === "House" ? chamber === "house" : chamber === "senate");
             const isBuy = t.transaction_type?.toLowerCase().includes("purchase");
             const matchesType = typeFilter === "all" || (typeFilter === "purchase" ? isBuy : !isBuy);
 
             return matchesSearch && matchesParty && matchesChamber && matchesType;
         });
     }, [trades, searchTerm, partyFilter, chamberFilter, typeFilter]);
+
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [searchTerm, partyFilter, chamberFilter, typeFilter]);
 
     const isPurchase = (type: string | null | undefined) =>
         type ? type.toLowerCase().includes("purchase") : false;
@@ -177,7 +183,7 @@ export default function Congress() {
                 ) : (
                     <div className="grid grid-cols-1 gap-3">
                         <AnimatePresence>
-                            {filteredTrades.slice(0, 50).map((trade, idx) => (
+                            {filteredTrades.slice(0, visibleCount).map((trade, idx) => (
                                 <motion.div
                                     key={trade.id ?? idx}
                                     initial={{ opacity: 0, y: 10 }}
@@ -193,7 +199,7 @@ export default function Congress() {
                                         </Avatar>
                                         <div>
                                             <Link to={`/congress/politician/${encodeURIComponent(trade.politician_name || "")}`} className="font-semibold text-white group-hover:text-primary transition-colors flex items-center gap-2">
-                                                {trade.politician_name}
+                                                {formatPoliticianDisplayName(trade.politician_name)}
                                             </Link>
                                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                 <Badge variant="outline" className={cn(
@@ -201,11 +207,11 @@ export default function Congress() {
                                                     trade.politician_party === "D" ? "bg-blue-500/20 text-blue-400" :
                                                         trade.politician_party === "R" ? "bg-red-500/20 text-red-400" : "bg-gray-500/20 text-gray-400"
                                                 )}>
-                                                    {trade.politician_party === "D" ? "DEM" : trade.politician_party === "R" ? "REP" : "IND"}
+                                                    {formatParty(trade.politician_party)}
                                                 </Badge>
-                                                <span>{trade.politician_state}</span>
+                                                <span>{formatUsState(trade.politician_state)}</span>
                                                 <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                                                <span>{trade.chamber}</span>
+                                                <span>{formatChamber(trade.chamber)}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -256,18 +262,30 @@ export default function Congress() {
                                                 <Calendar className="h-3 w-3" /> 披露日期
                                             </span>
                                             <span className="text-xs text-muted-foreground font-mono">
-                                                {safeDate(trade.disclosure_date)}
+                                                {safeDate(trade.disclosure_date, "yyyy-MM-dd")}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground/70 font-mono">
+                                                交易 {safeDate(trade.transaction_date, "yyyy-MM-dd")}
                                             </span>
                                         </div>
                                     </div>
                                 </motion.div>
                             ))}
                         </AnimatePresence>
-                        {filteredTrades.length > 50 && (
-                            <div className="text-center py-6">
-                                <p className="text-sm text-muted-foreground">显示最近披露的 50 笔交易</p>
-                            </div>
-                        )}
+                        <div className="text-center py-6 space-y-3">
+                            {filteredTrades.length > visibleCount && (
+                                <Button
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
+                                    onClick={() => setVisibleCount(v => Math.min(v + 50, filteredTrades.length))}
+                                >
+                                    加载更多
+                                </Button>
+                            )}
+                            <p className="text-sm text-muted-foreground">
+                                已显示 {Math.min(visibleCount, filteredTrades.length)} / {filteredTrades.length} 笔交易
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>

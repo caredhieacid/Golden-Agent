@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Gavel, TrendingUp, Newspaper, BarChart3, Users, ArrowUpRight, ArrowDownRight, Share2, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatChamber, formatParty, formatPoliticianDisplayName } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
@@ -318,7 +318,7 @@ export default function StockDetailPage() {
                                                     {congressTrades.slice(0, 5).map((t, i) => (
                                                         <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
                                                             <div className="flex flex-col">
-                                                                <span className="font-bold text-sm text-gray-200">{t.politician_name}</span>
+                                                                <span className="font-bold text-sm text-gray-200">{formatPoliticianDisplayName(t.politician_name)}</span>
                                                                 <span className="text-xs text-muted-foreground">{safeDate(t.disclosure_date)}</span>
                                                             </div>
                                                             <div className="text-right">
@@ -384,8 +384,8 @@ export default function StockDetailPage() {
                                                     <TableRow key={i} className="border-white/5 hover:bg-white/5">
                                                         <TableCell className="font-mono text-xs text-muted-foreground">{safeDate(t.disclosure_date)}</TableCell>
                                                         <TableCell>
-                                                            <div className="font-medium text-sm">{t.politician_name}</div>
-                                                            <div className="text-xs text-muted-foreground">{t.politician_party} • {t.chamber}</div>
+                                                            <div className="font-medium text-sm">{formatPoliticianDisplayName(t.politician_name)}</div>
+                                                            <div className="text-xs text-muted-foreground">{formatParty(t.politician_party)} • {formatChamber(t.chamber)}</div>
                                                         </TableCell>
                                                         <TableCell>
                                                             <span className={cn("text-xs font-bold", t.transaction_type?.includes("purchase") ? "text-green-400" : "text-red-400")}>

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Gavel, Clock, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, formatPoliticianDisplayName } from "@/lib/utils";
 
 export function CongressPreview() {
     const { congress, ready } = useData();
@@ -79,7 +79,7 @@ export function CongressPreview() {
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-0.5">
                                         <div className="font-bold text-sm text-gray-100 truncate pr-2 group-hover/item:text-primary transition-colors">
-                                            {trade.politician_name}
+                                            {formatPoliticianDisplayName(trade.politician_name)}
                                         </div>
                                         <Badge
                                             variant="outline"

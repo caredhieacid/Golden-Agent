@@ -109,19 +109,19 @@ app.get("/api/bulk", async (_req, res) => {
                 ],
                 take: 200
             }),
-            prisma.congressTrade.findMany({ orderBy: { disclosureDate: "desc" }, take: 100 }),
+            prisma.congressTrade.findMany({ orderBy: { disclosureDate: "desc" }, take: 300 }),
             prisma.politician.findMany({
                 include: { trades: { select: { id: true } } },
                 orderBy: { fullName: "asc" }
             }),
-            prisma.insiderTrade.findMany({ orderBy: { filingDate: "desc" }, take: 100 }),
+            prisma.insiderTrade.findMany({ orderBy: { filingDate: "desc" }, take: 300 }),
             // 内幕汇总：按 ticker 聚合
             prisma.insiderTrade.groupBy({
                 by: ["ticker"],
                 _count: { id: true },
                 _sum: { totalValue: true },
                 orderBy: { _count: { id: "desc" } },
-                take: 30,
+                take: 50,
             }),
             prisma.newsEvent.findMany({ orderBy: { timestamp: "desc" }, take: 50 }),
         ]);
@@ -350,14 +350,86 @@ async function fetchHotStocksForSSE() {
     }));
 }
 
+async function fetchCongressForSSE() {
+    const [trades, politicians] = await Promise.all([
+        prisma.congressTrade.findMany({ orderBy: { disclosureDate: "desc" }, take: 200 }),
+        prisma.politician.findMany({
+            include: { trades: { select: { id: true } } },
+            orderBy: { fullName: "asc" }
+        }),
+    ]);
+
+    return {
+        trades: trades.map(t => ({
+            id: t.id,
+            politician_name: t.politicianName,
+            politician_party: t.politicianParty,
+            politician_state: t.politicianState,
+            chamber: t.sourceChamber,
+            ticker: t.ticker,
+            company_name: t.companyName,
+            transaction_type: t.transactionType,
+            amount_min: t.amountMin,
+            amount_max: t.amountMax,
+            transaction_date: t.transactionDate?.toISOString(),
+            disclosure_date: t.disclosureDate?.toISOString(),
+        })),
+        politicians: politicians.map(p => ({
+            id: p.id,
+            full_name: p.fullName,
+            chamber: p.chamber,
+            state: p.state,
+            party: p.party,
+            trade_count: p.trades.length,
+        })),
+    };
+}
+
+async function fetchInsidersForSSE() {
+    const [trades, summary] = await Promise.all([
+        prisma.insiderTrade.findMany({ orderBy: { filingDate: "desc" }, take: 200 }),
+        prisma.insiderTrade.groupBy({
+            by: ["ticker"],
+            _count: { id: true },
+            _sum: { totalValue: true },
+            orderBy: { _count: { id: "desc" } },
+            take: 50,
+        }),
+    ]);
+
+    return {
+        trades: trades.map(t => ({
+            id: t.id,
+            ticker: t.ticker,
+            company_name: t.companyName,
+            insider_name: t.insiderName,
+            insider_title: t.insiderTitle,
+            transaction_type: t.transactionType,
+            shares: t.shares,
+            price_per_share: t.pricePerShare,
+            total_value: t.totalValue,
+            shares_owned: t.sharesOwned,
+            filing_date: t.filingDate?.toISOString(),
+            transaction_date: t.transactionDate?.toISOString(),
+        })),
+        summary: summary.map(s => ({
+            ticker: s.ticker,
+            trade_count: s._count.id,
+            total_value: s._sum.totalValue,
+        })),
+    };
+}
+
 // ============= Cron 调度（带 SSE 广播）=============
 function startCronJobs() {
     // 每 60 秒: 金价快照 + 指数
     cron.schedule("* * * * *", async () => {
-        console.log("[cron] 每分钟同步: 金价 + 指数");
+        console.log("[cron] 每分钟同步: 金价 + 指数 + 国会 + 内幕");
         await Promise.allSettled([
             syncAndBroadcast(syncGoldSnapshot, "gold_update", fetchGoldForSSE),
             syncAndBroadcast(syncStockIndices, "indices_update", fetchIndicesForSSE),
+            syncAndBroadcast(syncCongressData, "congress_trades_update", fetchCongressForSSE),
+            syncAndBroadcast(syncInsiderTrades, "insiders_trades_update", fetchInsidersForSSE),
         ]);
     });
 
@@ -377,14 +449,7 @@ function startCronJobs() {
         broadcaster.broadcast("gold_daily_update", { message: "日线已更新" });
     });
 
-    // 每天 08:00: 国会数据
-    cron.schedule("0 8 * * *", async () => {
-        console.log("[cron] 每日同步: 国会数据");
-        await syncCongressData();
-        broadcaster.broadcast("congress_update", { message: "国会数据已更新" });
-    });
-
-    console.log("⏰ Cron 已启动: 金价(1min) | 板块(5min) | 日线(18:00) | 国会(08:00)");
+    console.log("⏰ Cron 已启动: 金价/指数/国会/内幕(1min) | 板块/热股(5min) | 日线(18:00)");
     console.log("📡 SSE 实时推送已启用");
 }
 

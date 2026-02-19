@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, Trophy, Crown, Medal } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, formatChamber, formatParty, formatPoliticianDisplayName } from "@/lib/utils";
 
 export function RoiLeaderboard() {
     const { congress } = useData();
@@ -73,12 +73,12 @@ export function RoiLeaderboard() {
                                 </Avatar>
                                 <div>
                                     <div className="text-sm font-bold text-gray-100 group-hover:text-primary transition-colors">
-                                        {p.full_name}
+                                        {formatPoliticianDisplayName(p.full_name)}
                                     </div>
                                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                                        <span>{p.party === "D" ? "Democrat" : "Republican"}</span>
+                                        <span>{formatParty(p.party)}</span>
                                         <span className="w-1 h-1 rounded-full bg-gray-600"></span>
-                                        <span>{p.chamber}</span>
+                                        <span>{formatChamber(p.chamber)}</span>
                                     </div>
                                 </div>
                             </div>

@@ -8,6 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { RefreshCw, User, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { formatChamber, formatParty, formatPoliticianDisplayName, formatUsState } from "@/lib/utils";
 
 function safeDate(d: string | null | undefined): string {
     if (!d) return "--";
@@ -63,8 +64,6 @@ export default function PoliticianDetail() {
         );
     }
 
-    const partyName = data.party === "D" ? "民主党" : data.party === "R" ? "共和党" : "独立";
-    const chamberName = data.chamber === "house" ? "众议院" : "参议院";
     const buyTrades = data.trades?.filter((t: any) => t.transaction_type?.includes("purchase")) || [];
     const sellTrades = data.trades?.filter((t: any) => !t.transaction_type?.includes("purchase")) || [];
 
@@ -76,11 +75,11 @@ export default function PoliticianDetail() {
                     <User className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">{data.full_name}</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">{formatPoliticianDisplayName(data.full_name)}</h1>
                     <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <Badge className={PARTY_COLORS[data.party] || ""}>{partyName}</Badge>
-                        <Badge variant="outline">{chamberName}</Badge>
-                        <Badge variant="outline">{data.state}</Badge>
+                        <Badge className={PARTY_COLORS[data.party] || ""}>{formatParty(data.party)}</Badge>
+                        <Badge variant="outline">{formatChamber(data.chamber)}</Badge>
+                        <Badge variant="outline">{formatUsState(data.state)}</Badge>
                         {data.district && <Badge variant="outline">第 {data.district} 选区</Badge>}
                     </div>
                 </div>

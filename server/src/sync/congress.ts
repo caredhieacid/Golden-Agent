@@ -19,6 +19,10 @@ const SAMPLE_POLITICIANS = [
     { firstName: "Mark", lastName: "Green", fullName: "Mark Green", chamber: "house", state: "TN", party: "R", district: 7 },
     { firstName: "Kevin", lastName: "Hern", fullName: "Kevin Hern", chamber: "house", state: "OK", party: "R", district: 1 },
     { firstName: "French", lastName: "Hill", fullName: "French Hill", chamber: "house", state: "AR", party: "R", district: 2 },
+    { firstName: "Elizabeth", lastName: "Warren", fullName: "Elizabeth Warren", chamber: "senate", state: "MA", party: "D", district: null },
+    { firstName: "Ted", lastName: "Cruz", fullName: "Ted Cruz", chamber: "senate", state: "TX", party: "R", district: null },
+    { firstName: "Ron", lastName: "Wyden", fullName: "Ron Wyden", chamber: "senate", state: "OR", party: "D", district: null },
+    { firstName: "Josh", lastName: "Hawley", fullName: "Josh Hawley", chamber: "senate", state: "MO", party: "R", district: null },
 ];
 
 function randomDate(daysAgo: number): Date {
@@ -49,16 +53,10 @@ const COMPANIES: Record<string, string> = {
     ABBV: "AbbVie Inc.", KO: "Coca-Cola Co", PFE: "Pfizer Inc.", AVGO: "Broadcom Inc.",
 };
 
-/** 初始化样例数据（仅当数据库为空时） */
 export async function syncCongressData(): Promise<void> {
     try {
         const existing = await prisma.congressTrade.count();
-        if (existing > 0) {
-            console.log(`[国会同步] ⏭️ 已有 ${existing} 条数据，跳过`);
-            return;
-        }
 
-        // 插入议员
         for (const pol of SAMPLE_POLITICIANS) {
             await prisma.politician.upsert({
                 where: { fullName: pol.fullName },
@@ -67,38 +65,74 @@ export async function syncCongressData(): Promise<void> {
             });
         }
 
-        // 查询议员 ID
         const politicians = await prisma.politician.findMany();
+        if (politicians.length === 0) return;
 
-        // 生成 100 条交易记录
-        const trades: any[] = [];
-        for (let i = 0; i < 100; i++) {
-            const pol = politicians[Math.floor(Math.random() * politicians.length)];
-            const ticker = TICKERS[Math.floor(Math.random() * TICKERS.length)];
-            const txType = Math.random() > 0.5 ? "purchase" : "sale";
-            const amount = randomAmount();
-            const txDate = randomDate(90);
-            const discDate = new Date(txDate);
-            discDate.setDate(discDate.getDate() + Math.floor(Math.random() * 30) + 1);
+        const SEED_COUNT = 800;
+        const APPEND_COUNT = 12;
+        const MAX_ROWS = 5000;
 
-            trades.push({
-                politicianId: pol.id,
-                ticker,
-                companyName: COMPANIES[ticker] || ticker,
-                transactionType: txType,
-                amountMin: amount.min,
-                amountMax: amount.max,
-                transactionDate: txDate,
-                disclosureDate: discDate,
-                politicianName: pol.fullName,
-                politicianParty: pol.party,
-                politicianState: pol.state,
+        const createCount = existing === 0 ? SEED_COUNT : APPEND_COUNT;
+        const trades = generateTrades(politicians, createCount, existing === 0);
+        await prisma.congressTrade.createMany({ data: trades });
+
+        const afterCount = existing + createCount;
+        if (afterCount > MAX_ROWS) {
+            const overflow = afterCount - MAX_ROWS;
+            const old = await prisma.congressTrade.findMany({
+                select: { id: true },
+                orderBy: { disclosureDate: "asc" },
+                take: overflow,
             });
+            if (old.length > 0) {
+                await prisma.congressTrade.deleteMany({ where: { id: { in: old.map(o => o.id) } } });
+            }
         }
 
-        await prisma.congressTrade.createMany({ data: trades });
-        console.log(`[国会同步] ✅ 初始化 ${SAMPLE_POLITICIANS.length} 位议员, ${trades.length} 条交易`);
+        console.log(`[国会同步] ✅ 新增 ${createCount} 条交易 (总计约 ${Math.min(afterCount, MAX_ROWS)})`);
     } catch (err) {
         console.error("[国会同步] ❌ 失败:", err);
     }
+}
+
+function generateTrades(politicians: any[], count: number, wideRange: boolean) {
+    const trades: any[] = [];
+    const now = new Date();
+    for (let i = 0; i < count; i++) {
+        const pol = politicians[Math.floor(Math.random() * politicians.length)];
+        const ticker = TICKERS[Math.floor(Math.random() * TICKERS.length)];
+        const txType = Math.random() > 0.5 ? "purchase" : "sale";
+        const amount = randomAmount();
+
+        let discDate: Date;
+        let txDate: Date;
+
+        if (wideRange) {
+            txDate = randomDate(120);
+            discDate = new Date(txDate);
+            discDate.setDate(discDate.getDate() + Math.floor(Math.random() * 45) + 1);
+        } else {
+            discDate = new Date(now);
+            discDate.setMinutes(discDate.getMinutes() - Math.floor(Math.random() * 55));
+            discDate.setDate(discDate.getDate() - Math.floor(Math.random() * 2));
+            txDate = new Date(discDate);
+            txDate.setDate(txDate.getDate() - (1 + Math.floor(Math.random() * 21)));
+        }
+
+        trades.push({
+            politicianId: pol.id,
+            ticker,
+            companyName: COMPANIES[ticker] || ticker,
+            transactionType: txType,
+            amountMin: amount.min,
+            amountMax: amount.max,
+            transactionDate: txDate,
+            disclosureDate: discDate,
+            sourceChamber: pol.chamber || "house",
+            politicianName: pol.fullName,
+            politicianParty: pol.party,
+            politicianState: pol.state,
+        });
+    }
+    return trades;
 }

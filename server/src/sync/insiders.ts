@@ -50,68 +50,74 @@ function randomDate(daysAgo: number): Date {
 export async function syncInsiderTrades(): Promise<void> {
     try {
         const existing = await prisma.insiderTrade.count();
-        if (existing > 0) {
-            console.log(`[内幕同步] ⏭️ 已有 ${existing} 条数据，跳过`);
-            return;
-        }
+        const SEED_COUNT = 700;
+        const APPEND_COUNT = 14;
+        const MAX_ROWS = 5000;
 
+        const createCount = existing === 0 ? SEED_COUNT : APPEND_COUNT;
         const trades: any[] = [];
 
-        // 生成 CEO 交易（大额、重要）
-        for (const insider of INSIDERS) {
-            const numTrades = 2 + Math.floor(Math.random() * 4);
-            for (let i = 0; i < numTrades; i++) {
-                const isSale = Math.random() > 0.3; // 70% 卖出（高管套现常见）
-                const shares = Math.round((1000 + Math.random() * 50000) / 100) * 100;
-                const price = PRICES[insider.ticker] * (0.9 + Math.random() * 0.2);
-                const txDate = randomDate(90);
-                const fileDate = new Date(txDate);
-                fileDate.setDate(fileDate.getDate() + Math.floor(Math.random() * 3) + 1);
-
-                trades.push({
-                    ticker: insider.ticker,
-                    companyName: insider.company,
-                    insiderName: insider.name,
-                    insiderTitle: insider.title,
-                    transactionType: isSale ? "sale" : "purchase",
-                    shares,
-                    pricePerShare: parseFloat(price.toFixed(2)),
-                    totalValue: parseFloat((shares * price).toFixed(2)),
-                    sharesOwned: Math.round(50000 + Math.random() * 500000),
-                    transactionDate: txDate,
-                    filingDate: fileDate,
-                });
-            }
-        }
-
-        // 生成 Director 交易
-        for (let i = 0; i < 30; i++) {
+        const now = new Date();
+        for (let i = 0; i < createCount; i++) {
             const insider = INSIDERS[Math.floor(Math.random() * INSIDERS.length)];
-            const director = DIRECTOR_NAMES[Math.floor(Math.random() * DIRECTOR_NAMES.length)];
-            const isSale = Math.random() > 0.5;
-            const shares = Math.round((500 + Math.random() * 10000) / 100) * 100;
-            const price = PRICES[insider.ticker] * (0.9 + Math.random() * 0.2);
-            const txDate = randomDate(60);
-            const fileDate = new Date(txDate);
-            fileDate.setDate(fileDate.getDate() + Math.floor(Math.random() * 3) + 1);
+            const isDirector = existing === 0 ? Math.random() > 0.7 : Math.random() > 0.5;
+            const isSale = Math.random() > (isDirector ? 0.5 : 0.3);
+
+            const sharesBase = isDirector ? 15000 : 60000;
+            const shares = Math.round((500 + Math.random() * sharesBase) / 100) * 100;
+            const basePrice = PRICES[insider.ticker] ?? 100;
+            const price = basePrice * (0.9 + Math.random() * 0.2);
+
+            let filingDate: Date;
+            let transactionDate: Date;
+            if (existing === 0) {
+                transactionDate = randomDate(120);
+                filingDate = new Date(transactionDate);
+                filingDate.setDate(filingDate.getDate() + Math.floor(Math.random() * 3) + 1);
+            } else {
+                filingDate = new Date(now);
+                filingDate.setMinutes(filingDate.getMinutes() - Math.floor(Math.random() * 55));
+                filingDate.setDate(filingDate.getDate() - Math.floor(Math.random() * 2));
+                transactionDate = new Date(filingDate);
+                transactionDate.setDate(transactionDate.getDate() - (1 + Math.floor(Math.random() * 10)));
+            }
+
+            const insiderName = isDirector
+                ? DIRECTOR_NAMES[Math.floor(Math.random() * DIRECTOR_NAMES.length)]
+                : insider.name;
+            const insiderTitle = isDirector ? "Director" : insider.title;
 
             trades.push({
                 ticker: insider.ticker,
                 companyName: insider.company,
-                insiderName: director,
-                insiderTitle: "Director",
+                insiderName,
+                insiderTitle,
                 transactionType: isSale ? "sale" : "purchase",
                 shares,
                 pricePerShare: parseFloat(price.toFixed(2)),
                 totalValue: parseFloat((shares * price).toFixed(2)),
-                sharesOwned: Math.round(5000 + Math.random() * 50000),
-                transactionDate: txDate,
-                filingDate: fileDate,
+                sharesOwned: Math.round((isDirector ? 5000 : 50000) + Math.random() * (isDirector ? 50000 : 500000)),
+                transactionDate,
+                filingDate,
             });
         }
 
         await prisma.insiderTrade.createMany({ data: trades });
-        console.log(`[内幕同步] ✅ 初始化 ${trades.length} 条内幕交易`);
+
+        const afterCount = existing + createCount;
+        if (afterCount > MAX_ROWS) {
+            const overflow = afterCount - MAX_ROWS;
+            const old = await prisma.insiderTrade.findMany({
+                select: { id: true },
+                orderBy: { filingDate: "asc" },
+                take: overflow,
+            });
+            if (old.length > 0) {
+                await prisma.insiderTrade.deleteMany({ where: { id: { in: old.map(o => o.id) } } });
+            }
+        }
+
+        console.log(`[内幕同步] ✅ 新增 ${createCount} 条交易 (总计约 ${Math.min(afterCount, MAX_ROWS)})`);
     } catch (err) {
         console.error("[内幕同步] ❌ 失败:", err);
     }

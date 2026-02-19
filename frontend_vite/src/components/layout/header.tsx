@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { cn, formatChamber, formatPoliticianDisplayName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -236,8 +236,8 @@ export function Header() {
                                                         <button key={p.id} onClick={() => { navigate(`/congress/politician/${encodeURIComponent(p.name)}`); setSearchOpen(false); setSearchQuery(""); }}
                                                             className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm group transition-all border border-transparent hover:border-white/5">
                                                             <div className={cn("w-2 h-2 rounded-full ring-2 ring-transparent group-hover:ring-offset-1 transition-all", p.party === "D" ? "bg-blue-500" : p.party === "R" ? "bg-red-500" : "bg-gray-400")} />
-                                                            <span className="font-medium text-gray-200">{p.name}</span>
-                                                            <span className="text-xs text-muted-foreground ml-auto">{p.chamber === "Senate" ? "Sen" : "Rep"}</span>
+                                                            <span className="font-medium text-gray-200">{formatPoliticianDisplayName(p.name)}</span>
+                                                            <span className="text-xs text-muted-foreground ml-auto">{formatChamber(p.chamber)}</span>
                                                         </button>
                                                     ))}
                                                 </div>

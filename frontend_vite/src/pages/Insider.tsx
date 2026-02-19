@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/lib/data-provider";
 // import { Badge } from "@/components/ui/badge";
@@ -23,18 +23,19 @@ function safeDate(d: string | null | undefined, fmt = "MM/dd"): string {
 
 export default function Insider() {
     const { insiders, ready } = useData();
-    const trades = insiders.trades || [];
+    const trades = useMemo(() => insiders.trades || [], [insiders.trades]);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
     const [typeFilter, setTypeFilter] = useState<"all" | "purchase" | "sale">("all");
+    const [visibleCount, setVisibleCount] = useState(50);
 
     // Memoized Filtered Data
     const filteredTrades = useMemo(() => {
         return trades.filter((t: any) => {
             const matchesSearch = (t.company_name ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (t.ticker ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (t.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()); // Owner name
+                (t.insider_name ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
             const isBuy = t.transaction_type?.toLowerCase().includes("purchase") || t.transaction_type?.toLowerCase().includes("buy");
             const matchesType = typeFilter === "all" || (typeFilter === "purchase" ? isBuy : !isBuy);
@@ -43,12 +44,16 @@ export default function Insider() {
         });
     }, [trades, searchTerm, typeFilter]);
 
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [searchTerm, typeFilter]);
+
     const isPurchase = (type: string | null | undefined) =>
         type ? (type.toLowerCase().includes("purchase") || type.toLowerCase().includes("buy")) : false;
 
     // Stats
     const stats = useMemo(() => {
-        const totalVolume = filteredTrades.reduce((acc, t: any) => acc + (t.amount || t.value || 0), 0);
+        const totalVolume = filteredTrades.reduce((acc, t: any) => acc + (t.total_value || 0), 0);
         const buyCount = filteredTrades.filter((t: any) => isPurchase(t.transaction_type)).length;
         const sellCount = filteredTrades.length - buyCount;
         return { totalVolume, buyCount, sellCount };
@@ -143,7 +148,7 @@ export default function Insider() {
                 ) : (
                     <div className="grid grid-cols-1 gap-3">
                         <AnimatePresence>
-                            {filteredTrades.slice(0, 50).map((trade: any, idx: number) => (
+                            {filteredTrades.slice(0, visibleCount).map((trade: any, idx: number) => (
                                 <motion.div
                                     key={trade.id ?? idx}
                                     initial={{ opacity: 0, y: 10 }}
@@ -161,9 +166,9 @@ export default function Insider() {
                                                 {trade.company_name || trade.ticker}
                                             </Link>
                                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <span>{trade.name}</span>
+                                            <span>{trade.insider_name}</span>
                                                 <span className="w-1 h-1 rounded-full bg-white/20"></span>
-                                                <span className="uppercase">{trade.title || "内部人士"}</span>
+                                            <span className="uppercase">{trade.insider_title || "内部人士"}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -189,7 +194,7 @@ export default function Insider() {
                                                 <DollarSign className="h-3 w-3" /> 交易价值
                                             </span>
                                             <span className="text-sm font-mono text-gray-200">
-                                                ${(trade.value || trade.amount || 0).toLocaleString()}
+                                                ${(trade.total_value || 0).toLocaleString()}
                                             </span>
                                         </div>
 
@@ -198,22 +203,30 @@ export default function Insider() {
                                                 <Calendar className="h-3 w-3" /> 披露日期
                                             </span>
                                             <span className="text-xs text-muted-foreground font-mono">
-                                                {safeDate(trade.filing_date)}
+                                                {safeDate(trade.filing_date, "yyyy-MM-dd")}
+                                            </span>
+                                            <span className="text-[10px] text-muted-foreground/70 font-mono">
+                                                交易 {safeDate(trade.transaction_date, "yyyy-MM-dd")}
                                             </span>
                                         </div>
                                     </div>
                                 </motion.div>
                             ))}
                         </AnimatePresence>
-                        {filteredTrades.length > 50 && (
-                            <div className="text-center py-6">
-                                {filteredTrades.length > 50 && (
-                                    <div className="text-center py-6">
-                                        <p className="text-sm text-muted-foreground">显示最近披露的 50 笔交易</p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        <div className="text-center py-6 space-y-3">
+                            {filteredTrades.length > visibleCount && (
+                                <Button
+                                    variant="outline"
+                                    className="border-white/10 bg-white/5 hover:bg-white/10 text-white"
+                                    onClick={() => setVisibleCount(v => Math.min(v + 50, filteredTrades.length))}
+                                >
+                                    加载更多
+                                </Button>
+                            )}
+                            <p className="text-sm text-muted-foreground">
+                                已显示 {Math.min(visibleCount, filteredTrades.length)} / {filteredTrades.length} 笔交易
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>
