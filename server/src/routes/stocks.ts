@@ -46,7 +46,8 @@ router.get("/sectors", async (req, res) => {
 
 /** GET /api/stocks/hot?limit=20 — 热门个股 */
 router.get("/hot", async (req, res) => {
-    const limit = parseInt(req.query.limit as string) || 20;
+    const rawLimit = parseInt(req.query.limit as string);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 200, 1), 300);
 
     const rows = await prisma.hotStock.findMany({
         orderBy: { changePct: "desc" },

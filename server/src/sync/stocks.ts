@@ -143,35 +143,64 @@ export async function syncSectors(): Promise<void> {
 
 export async function syncHotStocks(): Promise<void> {
     try {
-        // 东方财富个股涨幅排行 (A 股全部，取前 20 只)
-        const url = "https://push2.eastmoney.com/api/qt/clist/get?" +
-            "pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3" +
-            "&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048" +
-            "&fields=f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f8,f9";
+        const base = "https://push2.eastmoney.com/api/qt/clist/get?";
+        const fs = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048";
+        const fields = "f12,f14,f2,f3,f4,f5,f6,f15,f16,f17,f8,f9";
+        const pz = 120;
+
+        const gainersUrl = base +
+            `pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f3` +
+            `&fs=${fs}` +
+            `&fields=${fields}`;
+        const losersUrl = base +
+            `pn=1&pz=${pz}&po=0&np=1&fltt=2&invt=2&fid=f3` +
+            `&fs=${fs}` +
+            `&fields=${fields}`;
+        const amountUrl = base +
+            `pn=1&pz=${pz}&po=1&np=1&fltt=2&invt=2&fid=f6` +
+            `&fs=${fs}` +
+            `&fields=${fields}`;
         // f12=代码 f14=名称 f2=最新价 f3=涨跌幅 f4=涨跌额
         // f5=成交量 f6=成交额 f15=最高 f16=最低 f17=今开 f8=换手率 f9=市盈率
 
-        const res = await fetch(url);
-        const json = await res.json() as any;
-        const list: any[] = json?.data?.diff ?? [];
+        const [gainersJson, losersJson, amountJson] = await Promise.all([
+            fetch(gainersUrl).then(r => r.json() as any),
+            fetch(losersUrl).then(r => r.json() as any),
+            fetch(amountUrl).then(r => r.json() as any),
+        ]);
+
+        const gainers: any[] = gainersJson?.data?.diff ?? [];
+        const losers: any[] = losersJson?.data?.diff ?? [];
+        const byAmount: any[] = amountJson?.data?.diff ?? [];
+        const list: any[] = [...byAmount, ...gainers, ...losers];
 
         // 清空旧数据再插入
         await prisma.hotStock.deleteMany();
 
-        const rows = list.slice(0, 50).map((item: any) => ({
-            code: String(item.f12 ?? ""),
-            name: String(item.f14 ?? ""),
-            price: typeof item.f2 === "number" ? item.f2 : null,
-            changePct: typeof item.f3 === "number" ? item.f3 : null,
-            changeAmount: typeof item.f4 === "number" ? item.f4 : null,
-            volume: typeof item.f5 === "number" ? item.f5 : null,
-            amount: typeof item.f6 === "number" ? item.f6 : null,
-            high: typeof item.f15 === "number" ? item.f15 : null,
-            low: typeof item.f16 === "number" ? item.f16 : null,
-            open: typeof item.f17 === "number" ? item.f17 : null,
-            turnoverRate: typeof item.f8 === "number" ? item.f8 : null,
-            peRatio: typeof item.f9 === "number" ? item.f9 : null,
-        }));
+        const seen = new Set<string>();
+        const rows = list
+            .map((item: any) => ({
+                code: String(item.f12 ?? ""),
+                name: String(item.f14 ?? ""),
+                price: typeof item.f2 === "number" ? item.f2 : null,
+                changePct: typeof item.f3 === "number" ? item.f3 : null,
+                changeAmount: typeof item.f4 === "number" ? item.f4 : null,
+                volume: typeof item.f5 === "number" ? item.f5 : null,
+                amount: typeof item.f6 === "number" ? item.f6 : null,
+                high: typeof item.f15 === "number" ? item.f15 : null,
+                low: typeof item.f16 === "number" ? item.f16 : null,
+                open: typeof item.f17 === "number" ? item.f17 : null,
+                turnoverRate: typeof item.f8 === "number" ? item.f8 : null,
+                peRatio: typeof item.f9 === "number" ? item.f9 : null,
+            }))
+            .filter((r) => {
+                const key = r.code.trim();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
+            .slice(0, 200);
 
         if (rows.length > 0) {
             await prisma.hotStock.createMany({ data: rows });

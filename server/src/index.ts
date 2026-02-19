@@ -53,19 +53,42 @@ app.get("/api/sse", (req, res) => {
         "Connection": "keep-alive",
         "Access-Control-Allow-Origin": "*",
     });
-    res.write("data: {\"type\":\"connected\"}\n\n");
+    let clientId: string | null = null;
+    let heartbeat: NodeJS.Timeout | null = null;
+    let cleaned = false;
 
-    const clientId = broadcaster.addClient(res);
+    const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        if (heartbeat) clearInterval(heartbeat);
+        if (clientId) broadcaster.removeClient(clientId);
+        try {
+            res.end();
+        } catch { }
+    };
+
+    const safeWrite = (chunk: string) => {
+        try {
+            res.write(chunk);
+            return true;
+        } catch {
+            cleanup();
+            return false;
+        }
+    };
+
+    safeWrite("data: {\"type\":\"connected\"}\n\n");
+
+    clientId = broadcaster.addClient(res);
 
     // 心跳，防止连接超时
-    const heartbeat = setInterval(() => {
-        res.write(":heartbeat\n\n");
+    heartbeat = setInterval(() => {
+        safeWrite(":heartbeat\n\n");
     }, 30000);
 
-    req.on("close", () => {
-        clearInterval(heartbeat);
-        broadcaster.removeClient(clientId);
-    });
+    req.on("close", cleanup);
+    res.on("close", cleanup);
+    res.on("error", cleanup);
 });
 
 // ============= 批量数据端点 (首次加载用) =============
@@ -79,7 +102,13 @@ app.get("/api/bulk", async (_req, res) => {
             prisma.goldDaily.findMany({ orderBy: { date: "desc" }, take: 365 }),
             prisma.stockIndex.findMany(),
             prisma.sector.findMany({ orderBy: { changePct: "desc" } }),
-            prisma.hotStock.findMany({ take: 50 }),
+            prisma.hotStock.findMany({
+                orderBy: [
+                    { amount: "desc" },
+                    { changePct: "desc" },
+                ],
+                take: 200
+            }),
             prisma.congressTrade.findMany({ orderBy: { disclosureDate: "desc" }, take: 100 }),
             prisma.politician.findMany({
                 include: { trades: { select: { id: true } } },
@@ -304,7 +333,13 @@ async function fetchSectorsForSSE() {
 }
 
 async function fetchHotStocksForSSE() {
-    const data = await prisma.hotStock.findMany({ take: 50 });
+    const data = await prisma.hotStock.findMany({
+        orderBy: [
+            { amount: "desc" },
+            { changePct: "desc" },
+        ],
+        take: 200
+    });
     return data.map(h => ({
         code: h.code, name: h.name,
         price: h.price, change_pct: h.changePct,
