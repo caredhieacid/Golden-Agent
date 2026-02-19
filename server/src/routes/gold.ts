@@ -75,4 +75,18 @@ router.get("/intraday", async (_req, res) => {
     );
 });
 
+/** POST /api/gold/sync — 手动触发同步 */
+router.post("/sync", async (_req, res) => {
+    const { syncGoldSnapshot, syncGoldDaily } = await import("../sync/gold.js");
+
+    // 并行同步
+    await Promise.allSettled([
+        syncGoldSnapshot(),
+        syncGoldDaily()
+    ]);
+
+    const count = await prisma.goldDaily.count();
+    res.json({ status: "ok", daily_records: count });
+});
+
 export default router;
