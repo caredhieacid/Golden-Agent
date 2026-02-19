@@ -65,6 +65,8 @@ model Sector {
   changePct       Float?
   leaderStock     String?
   leaderChangePct Float?
+  marketCap       Float?   // Total Market Cap
+  amount          Float?   // Turnover Amount
   updatedAt       DateTime @default(now())
 
   @@map("sector")

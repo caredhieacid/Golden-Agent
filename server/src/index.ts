@@ -128,6 +128,7 @@ app.get("/api/bulk", async (_req, res) => {
         const fmtSectors = sectors.map(s => ({
             name: s.name, change_pct: s.changePct,
             leader_stock: s.leaderStock, leader_change_pct: s.leaderChangePct,
+            market_cap: s.marketCap, amount: s.amount,
         }));
 
         // 格式化热股
@@ -298,6 +299,7 @@ async function fetchSectorsForSSE() {
     return data.map(s => ({
         name: s.name, change_pct: s.changePct,
         leader_stock: s.leaderStock, leader_change_pct: s.leaderChangePct,
+        market_cap: s.marketCap, amount: s.amount,
     }));
 }
 

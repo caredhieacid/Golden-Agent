@@ -47,6 +47,8 @@ export interface Sector {
     change_pct: number | null;
     leader_stock: string | null;
     leader_change_pct: number | null;
+    market_cap: number | null;
+    amount: number | null;
 }
 
 export interface StockItem {

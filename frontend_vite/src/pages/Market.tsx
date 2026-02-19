@@ -27,10 +27,6 @@ function toNumber(v: unknown): number | null {
     return null;
 }
 
-function clamp(v: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, v));
-}
-
 function fmtPct(v: number | null | undefined): string {
     if (v == null) return "--";
     const abs = Math.abs(v);
@@ -68,38 +64,67 @@ const itemVariants = {
 };
 
 /* ─── Custom Treemap Content ─── */
+const getSectorColor = (change: number | null) => {
+    // Fallback for null data (Grey Gradient)
+    if (change == null) return "#27272a";
+
+    // CN Market: Red = Up, Green = Down
+    const isUp = change > 0;
+    const abs = Math.min(Math.abs(change), 5); // Cap at 5%
+    const intensity = abs / 5; // 0 to 1
+
+    // Helper to mix colors
+    const mix = (c1: [number, number, number], c2: [number, number, number], t: number) => {
+        return [
+            Math.round(c1[0] + (c2[0] - c1[0]) * t),
+            Math.round(c1[1] + (c2[1] - c1[1]) * t),
+            Math.round(c1[2] + (c2[2] - c1[2]) * t),
+        ];
+    };
+
+    if (isUp) {
+        // Red: Dark to Vivid
+        const c = mix([127, 29, 29], [239, 68, 68], intensity);
+        return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+    } else {
+        // Green: Dark to Vivid
+        const c = mix([20, 83, 45], [34, 197, 94], intensity);
+        return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+    }
+};
+
 const CustomizedContent = (props: any) => {
-    const { depth, x, y, width, height, payload, name } = props;
+    const { x, y, width, height, payload, name } = props;
     const node = payload ?? {};
+
     const data =
-        node?.payload?.payload ??
+        payload?.payload ??
+        payload ??
         node?.payload ??
-        node?.data?.payload ??
-        node?.data ??
-        node;
-    const changePct = toNumber(
-        data?.change_pct ??
-        data?.payload?.change_pct ??
-        data?.data?.change_pct ??
-        node?.change_pct
-    );
-    const abs = changePct == null ? 0 : Math.abs(changePct);
-    const isNeutral = changePct == null || abs < 0.01;
-    const alpha = clamp(0.25 + Math.min(abs, 5) * 0.12, 0.25, 0.9);
-    const fill = isNeutral
-        ? "rgba(255, 255, 255, 0.06)"
-        : changePct >= 0
-            ? `rgba(239, 68, 68, ${alpha})`
-            : `rgba(34, 197, 94, ${alpha})`;
-    const strokeWidth = depth <= 1 ? 2 : 1;
-    const strokeOpacity = depth <= 1 ? 1 : 0.5;
-    const showLabel = depth >= 2 && width > 18 && height > 12 && typeof name === "string" && name.length > 0;
-    const showPct = depth >= 2 && width > 56 && height > 32 && changePct != null && abs >= 0.01;
+        node ??
+        props; // Add direct props fallback as last resort
+
+    // Robust extraction: Check both payload and root props
+    const changePct = toNumber(data?.change_pct ?? props.change_pct);
+    const leaderName = data?.leader_stock ?? props.leader_stock;
+    const leaderChange = toNumber(data?.leader_change_pct ?? props.leader_change_pct);
+
+    const fill = getSectorColor(changePct);
+
+    // Visibility
+    const showLabel = width > 40 && height > 30;
+    const showLeader = width > 80 && height > 60 && leaderName;
+
     const cx = x + width / 2;
     const cy = y + height / 2;
+
+    // Truncate label
     const label = typeof name === "string" ? truncateLabel(name, width) : "";
-    const labelFontSize = Math.max(7, Math.min(13, Math.floor(height / 8)));
-    const pctFontSize = Math.max(8, Math.min(11, Math.floor(height / 10)));
+
+    // Safe Font Sizing (Clamp) - Reduce to /8 to be safer
+    const labelFontSize = Math.min(22, Math.max(12, width / 8));
+    const pctFontSize = Math.min(16, Math.max(10, width / 9));
+    const leaderFontSize = Math.min(12, Math.max(9, width / 11));
 
     return (
         <g>
@@ -110,49 +135,56 @@ const CustomizedContent = (props: any) => {
                 height={height}
                 style={{
                     fill,
-                    stroke: "rgba(255,255,255,0.1)",
-                    strokeWidth,
-                    strokeOpacity,
+                    stroke: "#000",
+                    strokeWidth: 2,
+                    rx: 6,
+                    ry: 6,
                 }}
             />
             {showLabel && (
-                <text
-                    x={Math.round(cx)}
-                    y={Math.round(cy) - (showPct ? 8 : 0)}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="#fff"
-                    fontSize={labelFontSize}
-                    textRendering="geometricPrecision"
-                    style={{
-                        fontWeight: 700,
-                        paintOrder: "stroke",
-                        stroke: "rgba(0,0,0,0.65)",
-                        strokeWidth: width < 48 ? 2 : 3,
-                        strokeLinejoin: "round",
-                    }}
-                >
-                    {label}
-                </text>
-            )}
-            {showPct && (
-                <text
-                    x={Math.round(cx)}
-                    y={Math.round(cy) + 10}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                    fill="rgba(255,255,255,0.8)"
-                    fontSize={pctFontSize}
-                    textRendering="geometricPrecision"
-                    style={{
-                        paintOrder: "stroke",
-                        stroke: "rgba(0,0,0,0.6)",
-                        strokeWidth: 2,
-                        strokeLinejoin: "round",
-                    }}
-                >
-                    {changePct > 0 ? "+" : ""}{fmtPct(changePct)}%
-                </text>
+                <>
+                    {/* Sector Name */}
+                    <text
+                        x={cx}
+                        y={showLeader ? cy - 8 : cy - 5}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill="#fff"
+                        fontSize={labelFontSize}
+                        fontWeight={700}
+                        style={{ pointerEvents: "none", textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}
+                    >
+                        {label}
+                    </text>
+                    {/* Sector Change % - Show placeholder if null */}
+                    <text
+                        x={cx}
+                        y={showLeader ? cy + 8 : cy + 10}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fill="rgba(255,255,255,0.9)"
+                        fontSize={pctFontSize}
+                        fontWeight={500}
+                        style={{ pointerEvents: "none", textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}
+                    >
+                        {changePct != null ? (changePct > 0 ? "+" : "") + fmtPct(changePct) + "%" : "-"}
+                    </text>
+                    {/* Leader Stock Info */}
+                    {showLeader && (
+                        <text
+                            x={cx}
+                            y={cy + 24}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="rgba(255,255,255,0.7)"
+                            fontSize={leaderFontSize}
+                            fontWeight={400}
+                            style={{ pointerEvents: "none", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}
+                        >
+                            {leaderName} {leaderChange != null ? (leaderChange > 0 ? "+" : "") + fmtPct(leaderChange) + "%" : ""}
+                        </text>
+                    )}
+                </>
             )}
         </g>
     );
@@ -165,25 +197,50 @@ export default function Market() {
     const sectors = stocks.sectors as Sector[];
 
 
-
     const treemapData = useMemo(() => {
+        // Strict Blacklist
+        const BLACKLIST = [
+            "概念", "昨日", "近期", "东方财富", "指数", "板块", "活跃", "统计", "甚至", "即便", "主要", "其他",
+            "多板", "连板", "预测", "风格", "成分", "地区", "竞价", "华为", "苹果", "小米", "英伟达", "算力", "CPO", "PCB", "ETF", "LOF", "债"
+        ];
+
+        const cleanSectors = sectors.filter(s => {
+            const name = s.name || "";
+            // Removed strict data checks to allow fallback display
+
+            // B. Must not be in Blacklist
+            if (BLACKLIST.some(w => name.includes(w))) return false;
+
+            // C. Must not be too long
+            if (name.length > 5) return false;
+
+            return true;
+        });
+
+        // Sort & Slice Top 8
+        const sortedSectors = cleanSectors
+            .sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
+            .slice(0, 8);
+
         return [{
             name: "Market",
-            children: sectors.map((s) => ({
+            children: sortedSectors.map((s) => ({
                 name: s.name,
-                size: Math.abs(toNumber(s.change_pct) ?? 0) + 0.5,
+                // Fallback size if amounts are missing
+                size: Math.max(s.amount ?? 0, 1000),
                 change_pct: toNumber(s.change_pct),
-                fill: (toNumber(s.change_pct) ?? 0) >= 0 ?
-                    `rgba(239, 68, 68, ${Math.min(0.25 + (toNumber(s.change_pct) ?? 0) * 0.08, 0.85)})` :
-                    `rgba(34, 197, 94, ${Math.min(0.25 + Math.abs(toNumber(s.change_pct) ?? 0) * 0.08, 0.85)})`
+                amount: s.amount,
+                market_cap: s.market_cap,
+                leader_stock: s.leader_stock,
+                leader_change_pct: s.leader_change_pct
             }))
         }];
     }, [sectors]);
 
     return (
-        <div className="container py-8 px-4 md:px-6 relative z-10 max-w-7xl mx-auto">
+        <div className="container py-8 px-4 md:px-6 relative z-10 max-w-7xl mx-auto" >
             {/* 装饰背景 */}
-            <div className="absolute top-20 right-0 w-[500px] h-[500px] bg-red-600/5 blur-[150px] -z-10 rounded-full pointer-events-none" />
+            < div className="absolute top-20 right-0 w-[500px] h-[500px] bg-red-600/5 blur-[150px] -z-10 rounded-full pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-green-600/5 blur-[150px] -z-10 rounded-full pointer-events-none" />
 
             <motion.div
@@ -196,7 +253,7 @@ export default function Market() {
                 <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-2">
-                            A股 <span className="text-primary">全景</span>
+                            A股 <span className="text-primary">全景</span> <span className="text-xs text-muted-foreground opacity-50 font-normal">v2.2</span>
                         </h1>
                         <p className="text-muted-foreground">
                             AKShare 数据驱动的实时市场洞察与 SSE 推送。
@@ -255,7 +312,7 @@ export default function Market() {
                                 <CardTitle className="flex items-center gap-2 text-lg">
                                     <BarChart2 className="h-5 w-5 text-primary" /> 板块热力图
                                 </CardTitle>
-                                <CardDescription>各行业板块市场表现</CardDescription>
+                                <CardDescription>按交易额权重的市场热度</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-1 p-2 min-h-0">
                                 {sectors.length > 0 ? (
@@ -276,14 +333,19 @@ export default function Market() {
                                                             <div className="glass-panel p-3 rounded-xl border border-white/10 shadow-xl bg-[#09090b]/90 backdrop-blur-md">
                                                                 <p className="font-bold text-white mb-1">{data.name}</p>
                                                                 {v != null ? (
-                                                                    <p className={cn("text-sm font-mono", v > 0 ? "text-red-400" : "text-green-400")}>
-                                                                        Change: {v > 0 ? "+" : ""}{fmtPct(v)}%
+                                                                    <p className={cn("text-sm font-mono mb-2", v > 0 ? "text-red-400" : "text-green-400")}>
+                                                                        涨跌: {v > 0 ? "+" : ""}{fmtPct(v)}%
                                                                     </p>
-                                                                ) : (
-                                                                    <p className="text-sm font-mono text-muted-foreground">
-                                                                        Change: --
-                                                                    </p>
-                                                                )}
+                                                                ) : null}
+                                                                <div className="space-y-1 text-xs text-muted-foreground border-t border-white/10 pt-2 mt-1">
+                                                                    {data.market_cap && <p>市值: {amountYi(data.market_cap)}亿</p>}
+                                                                    {data.amount && <p>成交: {amountYi(data.amount)}亿</p>}
+                                                                    {data.leader_stock && (
+                                                                        <p className="text-zinc-400 mt-1">
+                                                                            领涨: <span className="text-zinc-200">{data.leader_stock}</span>
+                                                                        </p>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         );
                                                     }
@@ -357,6 +419,6 @@ export default function Market() {
                     </motion.div>
                 </div>
             </motion.div>
-        </div>
+        </div >
     );
 }

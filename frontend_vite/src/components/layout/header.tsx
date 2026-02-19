@@ -28,7 +28,7 @@ export function Header() {
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const handleScroll = () => setIsScrolled(window.scrollY > 20);
+        const handleScroll = () => setIsScrolled(window.scrollY > 50); // Increased threshold to avoid jitter
         window.addEventListener("scroll", handleScroll);
 
         // Initial animation
@@ -137,15 +137,15 @@ export function Header() {
             {/* Disclaimer Bar (Top) */}
             <div className="w-full bg-primary/5 border-b border-primary/10 py-1.5 text-center hidden md:block backdrop-blur-sm z-50 relative">
                 <p className="text-[10px] uppercase tracking-widest text-primary/80 font-medium">
-                    GoldenPolicy Intel · Alpha v2.0 · Live Market Data
+                    GoldenPolicy Intel · Alpha v2.3 · Live Market Data
                 </p>
             </div>
 
             <header
                 ref={headerRef}
                 className={cn(
-                    "fixed top-6 inset-x-0 mx-auto z-40 w-[95%] max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
-                    isScrolled ? "top-4 scale-[0.98]" : "top-8"
+                    "fixed top-16 inset-x-0 mx-auto z-40 w-[95%] max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+                    isScrolled ? "top-6 scale-[0.98]" : "top-16"
                 )}
             >
                 <div className={cn(

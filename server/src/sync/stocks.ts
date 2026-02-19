@@ -89,7 +89,7 @@ export async function syncStockIndices(): Promise<void> {
 
 export async function syncSectors(): Promise<void> {
     try {
-        const fields = "f14,f3,f128,f140,f136";
+        const fields = "f14,f3,f128,f140,f136,f20,f6";
         const base = "https://push2.eastmoney.com/api/qt/clist/get?";
         const gainersUrl = base +
             "pn=1&pz=25&po=1&np=1&fltt=2&invt=2&fid=f3" +
@@ -115,10 +115,12 @@ export async function syncSectors(): Promise<void> {
         const seen = new Set<string>();
         const rows = list
             .map((item: any) => ({
-            name: String(item.f14 ?? ""),
-            changePct: typeof item.f3 === "number" ? item.f3 : null,
-            leaderStock: item.f128 ? String(item.f128) : null,
-            leaderChangePct: typeof item.f140 === "number" ? item.f140 : null,
+                name: String(item.f14 ?? ""),
+                changePct: typeof item.f3 === "number" ? item.f3 : null,
+                leaderStock: item.f128 ? String(item.f128) : null,
+                leaderChangePct: typeof item.f140 === "number" ? item.f140 : null,
+                marketCap: typeof item.f20 === "number" ? item.f20 : null,
+                amount: typeof item.f6 === "number" ? item.f6 : null,
             }))
             .filter(r => {
                 const key = r.name.trim();

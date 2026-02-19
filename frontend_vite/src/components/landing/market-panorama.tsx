@@ -44,7 +44,7 @@ export function MarketPanorama() {
             });
         }, containerRef);
         return () => ctx.revert();
-    }, [activeTab]);
+    }, [activeTab, sectors]); // Add sectors to animate when data arrives
 
     const getBlockColor = (change: number) => {
         if (change > 1.5) return "bg-gradient-to-br from-red-500/20 to-red-600/10 border-red-500/30 text-red-100 hover:from-red-500/30";
