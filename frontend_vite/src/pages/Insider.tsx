@@ -2,7 +2,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useData } from "@/lib/data-provider";
-// import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, RefreshCw, Filter, ArrowUpRight, ArrowDownRight, DollarSign, Calendar } from "lucide-react";

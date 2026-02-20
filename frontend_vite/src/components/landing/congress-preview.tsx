@@ -38,8 +38,8 @@ export function CongressPreview() {
                         <Gavel className="h-5 w-5" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-white tracking-tight">国会山交易</h3>
-                        <p className="text-xs text-muted-foreground/80">Capitol Hill Trading Tracker</p>
+                        <h3 className="text-lg font-bold text-white tracking-tight">国会交易披露</h3>
+                        <p className="text-xs text-muted-foreground/80">Public Disclosure Records</p>
                     </div>
                 </div>
                 <Link to="/congress" className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-muted-foreground hover:text-white transition-all hover:scale-105 active:scale-95 group/link">

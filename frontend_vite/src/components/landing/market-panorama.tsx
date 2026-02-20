@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { useData } from "@/lib/data-provider";
 import type { Sector } from "@/types";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { TrendingUp, BarChart3, ArrowUpRight, Layers } from "lucide-react";
+import { TrendingUp, BarChart3, Layers } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,13 +15,13 @@ export function MarketPanorama() {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const fallbackSectors = useMemo(() => ([
-        { name: "TMT 科技", change_pct: 2.45, leader_stock: "N/A" },
-        { name: "新能源", change_pct: 1.12, leader_stock: "N/A" },
-        { name: "半导体", change_pct: 0.85, leader_stock: "N/A" },
-        { name: "医药生物", change_pct: -0.05, leader_stock: "N/A" },
-        { name: "消费电子", change_pct: -0.15, leader_stock: "N/A" },
-        { name: "房地产", change_pct: -1.2, leader_stock: "N/A" },
-        { name: "银行", change_pct: 0.1, leader_stock: "N/A" },
+        { name: "TMT 科技", change_pct: 0, leader_stock: "N/A" },
+        { name: "新能源", change_pct: 0, leader_stock: "N/A" },
+        { name: "半导体", change_pct: 0, leader_stock: "N/A" },
+        { name: "医药生物", change_pct: 0, leader_stock: "N/A" },
+        { name: "消费电子", change_pct: 0, leader_stock: "N/A" },
+        { name: "房地产", change_pct: 0, leader_stock: "N/A" },
+        { name: "银行", change_pct: 0, leader_stock: "N/A" },
     ] as Sector[]), []);
 
     const displaySectors = useMemo(() => {
@@ -74,13 +74,9 @@ export function MarketPanorama() {
                         <BarChart3 className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col">
-                        <h2 className="text-base font-bold text-white tracking-tight">市场全景</h2>
+                        <h2 className="text-base font-bold text-white tracking-tight">行情数据</h2>
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                            <span className="relative flex h-1.5 w-1.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
-                            </span>
-                            REAL-TIME MARKET DATA
+                            <span>公开市场数据</span>
                         </div>
                     </div>
                 </div>
@@ -93,7 +89,7 @@ export function MarketPanorama() {
                         className={cn("h-8 text-xs px-4 font-medium rounded-lg transition-all", activeTab === "heatmap" ? "bg-white/10 text-white shadow-lg" : "text-muted-foreground hover:text-white hover:bg-white/5")}
                     >
                         <Layers className="h-3.5 w-3.5 mr-1.5" />
-                        A股热力
+                        板块数据
                     </Button>
                     <Button
                         variant="ghost"
@@ -102,7 +98,7 @@ export function MarketPanorama() {
                         className={cn("h-8 text-xs px-4 font-medium rounded-lg transition-all", activeTab === "gold" ? "bg-[#ffd700]/20 text-[#ffd700] shadow-lg" : "text-muted-foreground hover:text-white hover:bg-white/5")}
                     >
                         <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
-                        黄金走势
+                        黄金行情
                     </Button>
                 </div>
             </div>
@@ -121,11 +117,8 @@ export function MarketPanorama() {
                         >
                             <div className="w-full h-full grid grid-cols-4 grid-rows-3 gap-3">
                                 <>
-                                    {/* Main Leaders */}
+                                    {/* Main Block */}
                                     <div className={cn("panorama-item row-span-2 col-span-2 rounded-2xl border flex flex-col items-center justify-center p-6 cursor-pointer transition-all shadow-lg relative group overflow-hidden", getBlockColor(displaySectors[0].change_pct ?? 0))}>
-                                            <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <ArrowUpRight className="h-5 w-5" />
-                                            </div>
                                             <span className="text-3xl font-bold tracking-tight relative z-10">{displaySectors[0].name}</span>
                                             <div className="flex items-center gap-2 mt-2 px-3 py-1 rounded-full bg-black/20 backdrop-blur-sm border border-white/5">
                                                 <span className="text-lg font-mono font-bold">{(displaySectors[0].change_pct ?? 0) > 0 ? "+" : ""}{displaySectors[0].change_pct ?? 0}%</span>
@@ -176,14 +169,10 @@ export function MarketPanorama() {
                         >
                             <div className="flex items-baseline gap-4 mb-6 px-2 panorama-item">
                                 <div>
-                                    <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-1">Spot Price (CNY/g)</div>
+                                    <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mb-1">现货价格 (CNY/g)</div>
                                     <div className="text-4xl font-mono font-bold text-[#ffd700] drop-shadow-[0_0_10px_rgba(255,215,0,0.3)]">
                                         ¥{goldHistory.length > 0 ? goldHistory[goldHistory.length - 1].price_cny : "---"}
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium">
-                                    <ArrowUpRight className="h-3.5 w-3.5" />
-                                    +0.45%
                                 </div>
                             </div>
 
@@ -227,6 +216,13 @@ export function MarketPanorama() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+            </div>
+
+            {/* Disclaimer */}
+            <div className="px-6 py-3 border-t border-white/5 bg-black/20 z-20">
+                <p className="text-[10px] text-muted-foreground/60 text-center">
+                    * 所有数据来源于公开渠道，仅供信息参考，不构成任何投资建议
+                </p>
             </div>
 
             {/* Background Effects */}

@@ -11,7 +11,7 @@ import {
     Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer,
     Line, LineChart
 } from "recharts";
-import { RefreshCw, Calculator, DollarSign, TrendingUp, ArrowRightLeft } from "lucide-react";
+import { RefreshCw, Calculator, ArrowRightLeft, Globe, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
@@ -45,6 +45,7 @@ function safeTime(str: any): string {
 }
 
 type ChartTab = "intraday" | "history";
+type MarketTab = "domestic" | "international";
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -66,10 +67,11 @@ const itemVariants = {
 export default function Gold() {
     const { gold, ready, sseConnected } = useData();
     const price = gold.prices;
-    const history = gold.history;
 
     const [intraday, setIntraday] = useState<any[]>([]);
+    const [historyData, setHistoryData] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<ChartTab>("intraday");
+    const [marketTab, setMarketTab] = useState<MarketTab>("domestic");
 
     // Calculator State
     const [calcWeight, setCalcWeight] = useState<number>(10); // default 10g
@@ -84,11 +86,21 @@ export default function Gold() {
         }
     }, []);
 
+    const fetchHistory = useCallback(async () => {
+        try {
+            const data = await api.gold.getHistory(90);
+            setHistoryData(data);
+        } catch (e) {
+            // console.error("获取历史走势失败:", e);
+        }
+    }, []);
+
     useEffect(() => {
         fetchIntraday();
+        fetchHistory();
         const timer = setInterval(fetchIntraday, 60_000);
         return () => clearInterval(timer);
-    }, [fetchIntraday]);
+    }, [fetchIntraday, fetchHistory]);
 
     const intlUsd = price?.international_usd;
     const domCny = price?.domestic_cny;
@@ -110,6 +122,27 @@ export default function Gold() {
             usd: (grams / 31.1035) * intlUsd
         };
     }, [calcWeight, calcUnit, domCny, intlUsd]);
+
+    // Chart data based on market tab
+    const intradayData = useMemo(() => {
+        if (marketTab === "domestic") {
+            return intraday.map(d => ({ ...d, value: d.price_cny }));
+        } else {
+            return intraday.map(d => ({ ...d, value: d.price_usd }));
+        }
+    }, [intraday, marketTab]);
+
+    const historyChartData = useMemo(() => {
+        if (marketTab === "domestic") {
+            return historyData.map(d => ({ ...d, value: d.price_cny }));
+        } else {
+            return historyData.map(d => ({ ...d, value: d.price_usd }));
+        }
+    }, [historyData, marketTab]);
+
+    const chartColor = marketTab === "domestic" ? "#ef4444" : "#EAB308";
+    const chartUnit = marketTab === "domestic" ? "¥" : "$";
+    const chartLabel = marketTab === "domestic" ? "Au9999 CNY/g" : "COMEX USD/oz";
 
     return (
         <div className="container py-8 px-4 md:px-6 relative z-10 max-w-7xl mx-auto">
@@ -149,7 +182,7 @@ export default function Gold() {
                     )}
                     <div className="glass-card rounded-2xl p-6 relative overflow-hidden group border-white/10 bg-gradient-to-br from-yellow-500/10 to-transparent">
                         <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <DollarSign className="w-24 h-24 -mr-4 -mt-4 transform rotate-12 text-yellow-500" />
+                            <Globe className="w-24 h-24 -mr-4 -mt-4 transform rotate-12 text-yellow-500" />
                         </div>
                         <h3 className="text-sm font-medium text-yellow-500 mb-2">国际金价 (USD/oz)</h3>
                         <div className="text-4xl font-bold text-white mb-1 tracking-tight">
@@ -160,7 +193,7 @@ export default function Gold() {
 
                     <div className="glass-card rounded-2xl p-6 relative overflow-hidden group border-white/10 bg-gradient-to-br from-red-500/10 to-transparent">
                         <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                            <TrendingUp className="w-24 h-24 -mr-4 -mt-4 transform rotate-12 text-red-500" />
+                            <Flag className="w-24 h-24 -mr-4 -mt-4 transform rotate-12 text-red-500" />
                         </div>
                         <h3 className="text-sm font-medium text-red-500 mb-2">国内金价 (CNY/g)</h3>
                         <div className="text-4xl font-bold text-white mb-1 tracking-tight">
@@ -196,82 +229,101 @@ export default function Gold() {
                         <Card className="glass-card border-none bg-black/20 flex-1 flex flex-col h-full">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <div>
-                                    <CardTitle>
+                                    <CardTitle className="flex items-center gap-2">
                                         {activeTab === "intraday" ? "日内走势 (分时)" : "历史走势 (日线)"}
                                     </CardTitle>
                                     <CardDescription>
-                                        {activeTab === "intraday"
-                                            ? `Au9999 · ${intraday.length} 个数据点`
-                                            : "Au9999 · 元/克 · 90天"}
+                                        {marketTab === "domestic" ? "国内 Au9999" : "国际 COMEX"} ·
+                                        {activeTab === "intraday" ? ` ${intraday.length} 个数据点` : " 90天"}
                                     </CardDescription>
                                 </div>
-                                <div className="flex gap-1 bg-white/5 rounded-lg p-1 border border-white/5">
-                                    <button onClick={() => setActiveTab("intraday")}
-                                        className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                            activeTab === "intraday" ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
-                                        日内
-                                    </button>
-                                    <button onClick={() => setActiveTab("history")}
-                                        className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all",
-                                            activeTab === "history" ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
-                                        历史
-                                    </button>
+                                <div className="flex gap-2">
+                                    {/* Market Toggle */}
+                                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/5">
+                                        <button onClick={() => setMarketTab("domestic")}
+                                            className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1",
+                                                marketTab === "domestic" ? "bg-red-500/20 text-red-400" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
+                                            <Flag className="h-3 w-3" />
+                                            国内
+                                        </button>
+                                        <button onClick={() => setMarketTab("international")}
+                                            className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1",
+                                                marketTab === "international" ? "bg-yellow-500/20 text-yellow-500" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
+                                            <Globe className="h-3 w-3" />
+                                            国际
+                                        </button>
+                                    </div>
+                                    {/* Time Toggle */}
+                                    <div className="flex bg-white/5 rounded-lg p-1 border border-white/5">
+                                        <button onClick={() => setActiveTab("intraday")}
+                                            className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                                                activeTab === "intraday" ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
+                                            日内
+                                        </button>
+                                        <button onClick={() => setActiveTab("history")}
+                                            className={cn("px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                                                activeTab === "history" ? "bg-white/10 text-white shadow-sm" : "text-muted-foreground hover:text-white hover:bg-white/5")}>
+                                            历史
+                                        </button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="flex-1 p-2 min-h-0">
                                 {activeTab === "intraday" ? (
-                                    intraday.length > 0 ? (
+                                    intradayData.length > 0 && intradayData.some(d => d.value != null) ? (
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <LineChart data={intraday}>
+                                            <LineChart data={intradayData}>
                                                 <defs>
                                                     <linearGradient id="goldGradientLine" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#EAB308" stopOpacity={0.8} />
-                                                        <stop offset="95%" stopColor="#EAB308" stopOpacity={0} />
+                                                        <stop offset="5%" stopColor={chartColor} stopOpacity={0.8} />
+                                                        <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                                                     </linearGradient>
                                                 </defs>
                                                 <XAxis dataKey="time" tickFormatter={safeTime} minTickGap={40}
                                                     tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
-                                                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} width={40} />
+                                                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} width={50}
+                                                    tickFormatter={(v) => marketTab === "domestic" ? v.toFixed(0) : v.toFixed(0)} />
                                                 <Tooltip contentStyle={{ backgroundColor: "rgba(9,9,11,0.9)", borderColor: "rgba(255,255,255,0.1)", borderRadius: "12px", boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }}
-                                                    itemStyle={{ color: "#EAB308" }}
-                                                    formatter={(value: any) => [`¥${value}`, "Au9999"] as [string, string]}
+                                                    itemStyle={{ color: chartColor }}
+                                                    formatter={(value: any) => [`${chartUnit}${value?.toFixed(2) ?? "--"}`, chartLabel] as [string, string]}
                                                     labelFormatter={(label: any) => safeTime(label)} />
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                                                <Line type="monotone" dataKey="price_cny" stroke="#EAB308" strokeWidth={2}
-                                                    dot={false} activeDot={{ r: 6, fill: "#EAB308", strokeWidth: 0 }} />
+                                                <Line type="monotone" dataKey="value" stroke={chartColor} strokeWidth={2}
+                                                    dot={false} activeDot={{ r: 6, fill: chartColor, strokeWidth: 0 }} />
                                             </LineChart>
                                         </ResponsiveContainer>
                                     ) : (
                                         <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
                                             <RefreshCw className="h-5 w-5 animate-spin" />
-                                            <span>等待日内数据...</span>
+                                            <span>等待{marketTab === "domestic" ? "国内" : "国际"}日内数据...</span>
                                         </div>
                                     )
                                 ) : (
-                                    history.length > 0 ? (
+                                    historyChartData.length > 0 && historyChartData.some(d => d.value != null) ? (
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={history}>
+                                            <AreaChart data={historyChartData}>
                                                 <defs>
                                                     <linearGradient id="goldGradientArea" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#EAB308" stopOpacity={0.3} />
-                                                        <stop offset="95%" stopColor="#EAB308" stopOpacity={0} />
+                                                        <stop offset="5%" stopColor={chartColor} stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                                                     </linearGradient>
                                                 </defs>
                                                 <XAxis dataKey="date" tickFormatter={safeDate} minTickGap={30}
                                                     tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} />
-                                                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} width={40} />
+                                                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: "#666" }} axisLine={false} tickLine={false} width={50}
+                                                    tickFormatter={(v) => marketTab === "domestic" ? v.toFixed(0) : v.toFixed(0)} />
                                                 <Tooltip contentStyle={{ backgroundColor: "rgba(9,9,11,0.9)", borderColor: "rgba(255,255,255,0.1)", borderRadius: "12px" }}
-                                                    itemStyle={{ color: "#EAB308" }}
-                                                    formatter={(value: any) => [`¥${value}`, "Close"] as [string, string]}
+                                                    itemStyle={{ color: chartColor }}
+                                                    formatter={(value: any) => [`${chartUnit}${value?.toFixed(2) ?? "--"}`, chartLabel] as [string, string]}
                                                     labelFormatter={(label: any) => safeDateFull(label)} />
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                                                <Area type="monotone" dataKey="price_cny" stroke="#EAB308" strokeWidth={2}
+                                                <Area type="monotone" dataKey="value" stroke={chartColor} strokeWidth={2}
                                                     fillOpacity={1} fill="url(#goldGradientArea)" />
                                             </AreaChart>
                                         </ResponsiveContainer>
                                     ) : (
                                         <div className="h-full flex items-center justify-center text-muted-foreground">
-                                            暂无历史数据
+                                            暂无{marketTab === "domestic" ? "国内" : "国际"}历史数据
                                         </div>
                                     )
                                 )}

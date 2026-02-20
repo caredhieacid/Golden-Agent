@@ -14,6 +14,10 @@ import congressRoutes from "./routes/congress.js";
 import insiderRoutes from "./routes/insiders.js";
 import newsRoutes from "./routes/news.js";
 import searchRoutes from "./routes/search.js";
+import authRoutes from "./routes/auth.js";
+import adminRoutes from "./routes/admin.js";
+import paymentRoutes from "./routes/payment.js";
+import { optionalAuth } from "./middleware/auth.js";
 
 import { syncGoldSnapshot, syncGoldDaily } from "./sync/gold.js";
 import { syncStockIndices, syncSectors, syncHotStocks } from "./sync/stocks.js";
@@ -23,7 +27,288 @@ import { syncNewsEvents } from "./sync/news.js";
 import { broadcaster } from "./sse.js";
 
 const PORT = 8000;
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8001";
 const app = express();
+
+type AIAgentId = "congress" | "insiders" | "gold" | "astocks";
+type AIAgentRunStatus = "idle" | "running" | "error";
+
+type AIAgentStatus = {
+    id: AIAgentId;
+    name: string;
+    status: AIAgentRunStatus;
+    last_run_at: string | null;
+    updated_at: string;
+    signals_today: number;
+    last_error: string | null;
+};
+
+const AI_EVENT_TYPES = ["ai_insight", "ai_signal"] as const;
+
+const aiStatuses: Record<AIAgentId, AIAgentStatus> = {
+    congress: {
+        id: "congress",
+        name: "国会交易 Agent",
+        status: "idle",
+        last_run_at: null,
+        updated_at: new Date().toISOString(),
+        signals_today: 0,
+        last_error: null,
+    },
+    insiders: {
+        id: "insiders",
+        name: "内幕交易 Agent",
+        status: "idle",
+        last_run_at: null,
+        updated_at: new Date().toISOString(),
+        signals_today: 0,
+        last_error: null,
+    },
+    gold: {
+        id: "gold",
+        name: "黄金套利 Agent",
+        status: "idle",
+        last_run_at: null,
+        updated_at: new Date().toISOString(),
+        signals_today: 0,
+        last_error: null,
+    },
+    astocks: {
+        id: "astocks",
+        name: "A股热点 Agent",
+        status: "idle",
+        last_run_at: null,
+        updated_at: new Date().toISOString(),
+        signals_today: 0,
+        last_error: null,
+    },
+};
+
+function snapshotAiStatuses(): AIAgentStatus[] {
+    return Object.values(aiStatuses);
+}
+
+function setAiStatus(id: AIAgentId, patch: Partial<AIAgentStatus>) {
+    aiStatuses[id] = {
+        ...aiStatuses[id],
+        ...patch,
+        updated_at: new Date().toISOString(),
+    };
+}
+
+function startOfToday(): Date {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+async function fetchAiInsights(limit: number = 50) {
+    const rows = await prisma.newsEvent.findMany({
+        where: { type: { in: [...AI_EVENT_TYPES] } },
+        orderBy: { timestamp: "desc" },
+        take: Math.max(1, Math.min(200, limit)),
+    });
+    return rows.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        summary: n.summary,
+        ticker: n.ticker,
+        related_entity: n.relatedEntity,
+        url: n.url,
+        timestamp: n.timestamp?.toISOString(),
+    }));
+}
+
+async function writeAiEvent(params: {
+    type: (typeof AI_EVENT_TYPES)[number];
+    title: string;
+    summary?: string | null;
+    ticker?: string | null;
+    relatedEntity?: string | null;
+    url?: string | null;
+    timestamp?: Date;
+    dedupeWindowMs?: number;
+}) {
+    const dedupeWindowMs = params.dedupeWindowMs ?? 30 * 60 * 1000;
+    const since = new Date(Date.now() - dedupeWindowMs);
+
+    const exists = await prisma.newsEvent.findFirst({
+        where: {
+            type: params.type,
+            title: params.title,
+            timestamp: { gte: since },
+        },
+        select: { id: true },
+        orderBy: { timestamp: "desc" },
+    });
+    if (exists) return false;
+
+    await prisma.newsEvent.create({
+        data: {
+            type: params.type,
+            title: params.title,
+            summary: params.summary ?? null,
+            ticker: params.ticker ?? null,
+            relatedEntity: params.relatedEntity ?? null,
+            url: params.url ?? null,
+            timestamp: params.timestamp ?? new Date(),
+        },
+    });
+    return true;
+}
+
+async function runAiAgents(reason: string) {
+    const agentIds: AIAgentId[] = ["congress", "insiders", "gold", "astocks"];
+    let createdCount = 0;
+
+    for (const id of agentIds) {
+        setAiStatus(id, { status: "running", last_error: null });
+        try {
+            if (id === "congress") {
+                const recent = await prisma.congressTrade.findMany({
+                    orderBy: { disclosureDate: "desc" },
+                    take: 120,
+                    select: {
+                        ticker: true,
+                        companyName: true,
+                        politicianName: true,
+                        politicianParty: true,
+                        disclosureDate: true,
+                    },
+                });
+
+                const byTicker = new Map<string, { count: number; company: string | null }>();
+                for (const t of recent) {
+                    if (!t.ticker) continue;
+                    const key = t.ticker.toUpperCase();
+                    const cur = byTicker.get(key) ?? { count: 0, company: t.companyName ?? null };
+                    cur.count += 1;
+                    if (!cur.company && t.companyName) cur.company = t.companyName;
+                    byTicker.set(key, cur);
+                }
+
+                const top = Array.from(byTicker.entries()).sort((a, b) => b[1].count - a[1].count)[0];
+                if (top && top[1].count >= 3) {
+                    const [ticker, meta] = top;
+                    const ok = await writeAiEvent({
+                        type: "ai_insight",
+                        title: `【国会】${ticker} 短期披露频次上升`,
+                        summary: `最近披露记录中，${ticker}${meta.company ? `（${meta.company}）` : ""} 出现次数偏高（约 ${meta.count} 次/120 条）。建议结合议员分布与时间窗进一步筛选。`,
+                        ticker,
+                        relatedEntity: "Congress",
+                    });
+                    if (ok) createdCount += 1;
+                }
+            }
+
+            if (id === "insiders") {
+                const recent = await prisma.insiderTrade.findMany({
+                    orderBy: { filingDate: "desc" },
+                    take: 160,
+                    select: {
+                        ticker: true,
+                        companyName: true,
+                        transactionType: true,
+                        totalValue: true,
+                        insiderName: true,
+                        filingDate: true,
+                    },
+                });
+
+                const byTicker = new Map<string, { buy: number; sell: number; value: number; company: string | null }>();
+                for (const t of recent) {
+                    if (!t.ticker) continue;
+                    const key = t.ticker.toUpperCase();
+                    const cur = byTicker.get(key) ?? { buy: 0, sell: 0, value: 0, company: t.companyName ?? null };
+                    const isBuy = t.transactionType === "purchase";
+                    if (isBuy) cur.buy += 1;
+                    else cur.sell += 1;
+                    cur.value += t.totalValue ?? 0;
+                    if (!cur.company && t.companyName) cur.company = t.companyName;
+                    byTicker.set(key, cur);
+                }
+
+                const top = Array.from(byTicker.entries()).sort((a, b) => b[1].value - a[1].value)[0];
+                if (top && top[1].value >= 2_000_000) {
+                    const [ticker, meta] = top;
+                    const type: (typeof AI_EVENT_TYPES)[number] = meta.buy >= meta.sell ? "ai_signal" : "ai_insight";
+                    const ok = await writeAiEvent({
+                        type,
+                        title: `【内幕】${ticker} 近期交易金额偏大`,
+                        summary: `${ticker}${meta.company ? `（${meta.company}）` : ""} 近期 Form 4 记录中累计交易金额偏大（约 $${(meta.value / 1_000_000).toFixed(2)}M），买入/卖出次数 ${meta.buy}/${meta.sell}。`,
+                        ticker,
+                        relatedEntity: "SEC Form 4",
+                    });
+                    if (ok) createdCount += 1;
+                }
+            }
+
+            if (id === "gold") {
+                const snap = await prisma.goldSnapshot.findFirst({ orderBy: { timestamp: "desc" } });
+                const spread = snap?.spreadPct ?? null;
+                if (spread !== null && Math.abs(spread) >= 1.2) {
+                    const type: (typeof AI_EVENT_TYPES)[number] = Math.abs(spread) >= 2.0 ? "ai_signal" : "ai_insight";
+                    const ok = await writeAiEvent({
+                        type,
+                        title: `【黄金】国内外价差偏离 ${spread.toFixed(2)}%`,
+                        summary: `监测到国内外金价价差偏离（spread_pct=${spread.toFixed(2)}%），可进一步结合汇率与盘中波动判断是否存在短时套利窗口。`,
+                        relatedEntity: "Gold",
+                    });
+                    if (ok) createdCount += 1;
+                }
+            }
+
+            if (id === "astocks") {
+                const topSector = await prisma.sector.findFirst({
+                    orderBy: { changePct: "desc" },
+                    select: {
+                        name: true,
+                        changePct: true,
+                        leaderStock: true,
+                        leaderChangePct: true,
+                    },
+                });
+                if (topSector?.changePct !== null && topSector?.changePct !== undefined && topSector.changePct >= 2.5) {
+                    const type: (typeof AI_EVENT_TYPES)[number] = topSector.changePct >= 4.0 ? "ai_signal" : "ai_insight";
+                    const ok = await writeAiEvent({
+                        type,
+                        title: `【A股】板块走强：${topSector.name} +${topSector.changePct.toFixed(2)}%`,
+                        summary: `板块强度靠前：${topSector.name}（${topSector.changePct.toFixed(2)}%）。领涨：${topSector.leaderStock ?? "N/A"}（${(topSector.leaderChangePct ?? 0).toFixed(2)}%）。可关注持续性与成交额配合。`,
+                        relatedEntity: topSector.name,
+                    });
+                    if (ok) createdCount += 1;
+                }
+            }
+
+            setAiStatus(id, { status: "idle", last_run_at: new Date().toISOString() });
+        } catch (err: any) {
+            setAiStatus(id, {
+                status: "error",
+                last_run_at: new Date().toISOString(),
+                last_error: String(err?.message ?? err ?? "unknown error"),
+            });
+        }
+    }
+
+    const today = startOfToday();
+    const signalsToday = await prisma.newsEvent.count({
+        where: { type: { in: [...AI_EVENT_TYPES] }, timestamp: { gte: today } },
+    });
+    for (const id of agentIds) {
+        setAiStatus(id, { signals_today: signalsToday });
+    }
+
+    const insights = await fetchAiInsights(50);
+    broadcaster.broadcast("ai_status_update", snapshotAiStatuses());
+    broadcaster.broadcast("ai_insights_update", insights);
+
+    if (createdCount > 0) {
+        console.log(`[AI] 新增 ${createdCount} 条分析事件 (${reason})`);
+    }
+
+    return { createdCount, insights };
+}
 
 // ============= 中间件 =============
 app.use(cors({ origin: "*" }));
@@ -37,6 +322,30 @@ app.use((req, _res, next) => {
     next();
 });
 
+// Analytics tracking middleware (optional auth to get user ID)
+app.use("/api", optionalAuth, async (req, _res, next) => {
+    // Skip analytics for certain paths
+    if (req.path.includes("/sse") || req.path.includes("/health") || req.path.includes("/captcha")) {
+        return next();
+    }
+
+    // Fire and forget analytics
+    prisma.analytics.create({
+        data: {
+            userId: req.user?.id || null,
+            path: req.path,
+            method: req.method,
+            ip: req.ip || req.connection.remoteAddress,
+            userAgent: req.headers["user-agent"],
+            referer: req.headers.referer,
+        },
+    }).catch(() => {
+        // Silently fail analytics
+    });
+
+    next();
+});
+
 // ============= 路由 =============
 app.use("/api/gold", goldRoutes);
 app.use("/api/stocks", stockRoutes);
@@ -44,6 +353,9 @@ app.use("/api/congress", congressRoutes);
 app.use("/api/insiders", insiderRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payment", paymentRoutes);
 
 // ============= SSE 实时推送端点 =============
 app.get("/api/sse", (req, res) => {
@@ -96,7 +408,7 @@ app.get("/api/bulk", async (_req, res) => {
     try {
         const [
             goldSnapshot, goldDaily, indices, sectors, hotStocks,
-            congressTrades, politicians, insiderTrades, insiderSummary, newsEvents
+            congressTrades, politicians, insiderTrades, insiderSummary, newsEvents, aiInsights
         ] = await Promise.all([
             prisma.goldSnapshot.findMany({ orderBy: { timestamp: "desc" }, take: 1 }),
             prisma.goldDaily.findMany({ orderBy: { date: "desc" }, take: 365 }),
@@ -124,6 +436,11 @@ app.get("/api/bulk", async (_req, res) => {
                 take: 50,
             }),
             prisma.newsEvent.findMany({ orderBy: { timestamp: "desc" }, take: 50 }),
+            prisma.newsEvent.findMany({
+                where: { type: { in: [...AI_EVENT_TYPES] } },
+                orderBy: { timestamp: "desc" },
+                take: 50,
+            }),
         ]);
 
         // 格式化金价快照
@@ -222,17 +539,180 @@ app.get("/api/bulk", async (_req, res) => {
             url: n.url, timestamp: n.timestamp?.toISOString(),
         }));
 
+        const fmtAiInsights = aiInsights.map(n => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            summary: n.summary,
+            ticker: n.ticker,
+            related_entity: n.relatedEntity,
+            url: n.url,
+            timestamp: n.timestamp?.toISOString(),
+        }));
+
         res.json({
             gold: { prices: goldPrices, history: goldHistory },
             stocks: { indices: fmtIndices, sectors: fmtSectors, hot: fmtHot },
             congress: { trades: fmtTrades, politicians: fmtPols },
             insiders: { trades: fmtInsiders, summary: fmtInsiderSummary },
             news: fmtNews,
+            ai: { statuses: snapshotAiStatuses(), insights: fmtAiInsights },
             timestamp: new Date().toISOString(),
         });
     } catch (err) {
         console.error("[bulk] 数据加载失败:", err);
         res.status(500).json({ error: "Bulk data load failed" });
+    }
+});
+
+app.get("/api/ai/status", async (_req, res) => {
+    res.json({
+        agents: snapshotAiStatuses(),
+        timestamp: new Date().toISOString(),
+    });
+});
+
+app.get("/api/ai/insights", async (req, res) => {
+    const limit = Number(req.query.limit ?? 50);
+    const insights = await fetchAiInsights(Number.isFinite(limit) ? limit : 50);
+    res.json({ insights, timestamp: new Date().toISOString() });
+});
+
+app.post("/api/ai/run", async (_req, res) => {
+    await runAiAgents("manual");
+    res.json({ ok: true, timestamp: new Date().toISOString() });
+});
+
+// ============= AI Recommendation Service Proxy =============
+// Proxy routes to Python AI recommendation service
+
+app.get("/api/ai/recommendations", async (req, res) => {
+    try {
+        const market = req.query.market as string | undefined;
+        const limit = req.query.limit as string | undefined;
+
+        const params = new URLSearchParams();
+        if (market) params.append("market", market);
+        if (limit) params.append("limit", limit);
+
+        const url = `${AI_SERVICE_URL}/recommendations?${params.toString()}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            // If Python service is not available, return empty recommendations
+            return res.json({
+                recommendations: [],
+                count: 0,
+                market: market || null,
+                timestamp: new Date().toISOString(),
+                error: "AI service unavailable",
+            });
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        // Return empty recommendations if service is down
+        res.json({
+            recommendations: [],
+            count: 0,
+            timestamp: new Date().toISOString(),
+            error: "AI service unavailable",
+        });
+    }
+});
+
+app.get("/api/ai/recommendations/accuracy", async (req, res) => {
+    try {
+        const market = req.query.market as string | undefined;
+        const days = req.query.days as string | undefined;
+
+        const params = new URLSearchParams();
+        if (market) params.append("market", market);
+        if (days) params.append("days", days);
+
+        const url = `${AI_SERVICE_URL}/accuracy?${params.toString()}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            return res.json({
+                total: 0,
+                hits: 0,
+                misses: 0,
+                pending: 0,
+                accuracy: 0,
+                period_days: parseInt(days || "30"),
+                error: "AI service unavailable",
+            });
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.json({
+            total: 0,
+            hits: 0,
+            misses: 0,
+            pending: 0,
+            accuracy: 0,
+            period_days: 30,
+            error: "AI service unavailable",
+        });
+    }
+});
+
+app.get("/api/ai/recommendations/status", async (_req, res) => {
+    try {
+        const response = await fetch(`${AI_SERVICE_URL}/status`);
+        if (!response.ok) {
+            return res.json({
+                us: { status: "unavailable", market: "us" },
+                cn: { status: "unavailable", market: "cn" },
+            });
+        }
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        res.json({
+            us: { status: "unavailable", market: "us" },
+            cn: { status: "unavailable", market: "cn" },
+        });
+    }
+});
+
+app.post("/api/ai/recommendations/run", async (req, res) => {
+    try {
+        const market = (req.query.market as string) || "us";
+
+        // Trigger both markets in parallel
+        const [usResponse, cnResponse] = await Promise.all([
+            fetch(`${AI_SERVICE_URL}/analyze`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ market: "us" }),
+            }).catch(() => null),
+            fetch(`${AI_SERVICE_URL}/analyze`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ market: "cn" }),
+            }).catch(() => null),
+        ]);
+
+        const results = {
+            us: usResponse?.ok ? "started" : "failed",
+            cn: cnResponse?.ok ? "started" : "failed",
+        };
+
+        res.json({
+            ok: true,
+            results,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error: any) {
+        res.status(500).json({
+            ok: false,
+            error: error?.message || "Failed to trigger analysis",
+        });
     }
 });
 
@@ -246,6 +726,10 @@ app.get("/api/health", async (_req, res) => {
     const tradeCount = await prisma.congressTrade.count();
     const insiderCount = await prisma.insiderTrade.count();
     const newsCount = await prisma.newsEvent.count();
+    const userCount = await prisma.user.count();
+    const sessionCount = await prisma.session.count();
+    const paymentCount = await prisma.payment.count();
+    const analyticsCount = await prisma.analytics.count();
 
     res.json({
         status: "healthy",
@@ -261,6 +745,10 @@ app.get("/api/health", async (_req, res) => {
             congress_trades: tradeCount,
             insider_trades: insiderCount,
             news_events: newsCount,
+            users: userCount,
+            sessions: sessionCount,
+            payments: paymentCount,
+            analytics: analyticsCount,
         },
         timestamp: new Date().toISOString(),
     });
@@ -297,6 +785,8 @@ async function initialSync() {
 
     // 新闻事件依赖其他数据，需要后执行
     await syncNewsEvents();
+
+    await runAiAgents("initial_sync");
 
     console.log("\n✅ 首轮数据同步完成!\n");
 }
@@ -431,6 +921,8 @@ function startCronJobs() {
             syncAndBroadcast(syncCongressData, "congress_trades_update", fetchCongressForSSE),
             syncAndBroadcast(syncInsiderTrades, "insiders_trades_update", fetchInsidersForSSE),
         ]);
+
+        await runAiAgents("cron_1min");
     });
 
     // 每 5 分钟: 板块 + 热股
@@ -449,7 +941,50 @@ function startCronJobs() {
         broadcaster.broadcast("gold_daily_update", { message: "日线已更新" });
     });
 
-    console.log("⏰ Cron 已启动: 金价/指数/国会/内幕(1min) | 板块/热股(5min) | 日线(18:00)");
+    // 每小时整点: AI 推荐分析
+    cron.schedule("0 * * * *", async () => {
+        console.log("[cron] 每小时 AI 推荐");
+        try {
+            // 并行触发 A 股和美股分析
+            const [usRes, cnRes] = await Promise.allSettled([
+                fetch(`${AI_SERVICE_URL}/analyze`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ market: "us" }),
+                }),
+                fetch(`${AI_SERVICE_URL}/analyze`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ market: "cn" }),
+                }),
+            ]);
+
+            // 等待一小段时间后获取结果
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            // 获取结果并广播
+            try {
+                const [usRecs, cnRecs] = await Promise.all([
+                    fetch(`${AI_SERVICE_URL}/recommendations?market=us&limit=10`).then(r => r.ok ? r.json() : { recommendations: [] }),
+                    fetch(`${AI_SERVICE_URL}/recommendations?market=cn&limit=10`).then(r => r.ok ? r.json() : { recommendations: [] }),
+                ]);
+
+                broadcaster.broadcast("ai_recommendations_update", {
+                    us: usRecs,
+                    cn: cnRecs,
+                    timestamp: new Date().toISOString(),
+                });
+
+                console.log(`[AI Service] 推荐已更新: US=${usRecs.recommendations?.length || 0}, CN=${cnRecs.recommendations?.length || 0}`);
+            } catch (fetchErr) {
+                console.error("[AI Service] 获取推荐结果失败:", fetchErr);
+            }
+        } catch (err) {
+            console.error("[AI Service] 分析失败:", err);
+        }
+    });
+
+    console.log("⏰ Cron 已启动: 金价/指数/国会/内幕(1min) | 板块/热股(5min) | 日线(18:00) | AI推荐(每小时)");
     console.log("📡 SSE 实时推送已启用");
 }
 

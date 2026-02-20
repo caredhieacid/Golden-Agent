@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Gavel, BarChart3, TrendingUp, Search,
-    Menu, X, Newspaper, UserSearch, Sparkles
+    Menu, X, Newspaper, UserSearch, AlertTriangle
 } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -128,24 +128,29 @@ export function Header() {
         { name: "国会交易", href: "/congress", icon: Gavel },
         { name: "内幕交易", href: "/insider", icon: UserSearch },
         { name: "实时动态", href: "/news", icon: Newspaper },
-        { name: "A股行情", href: "/cn-market", icon: TrendingUp },
+        // AI分析功能已暂停，将作为学术研究项目单独开源
+        { name: "行情数据", href: "/cn-market", icon: TrendingUp },
         { name: "黄金市场", href: "/gold", icon: BarChart3 },
     ];
 
     return (
         <>
-            {/* Disclaimer Bar (Top) */}
-            <div className="w-full bg-primary/5 border-b border-primary/10 py-1.5 text-center hidden md:block backdrop-blur-sm z-50 relative">
-                <p className="text-[10px] uppercase tracking-widest text-primary/80 font-medium">
-                    GoldenPolicy Intel · Alpha v2.3 · Live Market Data
+            {/* Risk Warning Bar (Top) */}
+            <div className="w-full bg-amber-500/10 border-b border-amber-500/20 py-2 text-center backdrop-blur-sm z-50 relative">
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center justify-center gap-2 flex-wrap">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>
+                        本站仅提供客观信息聚合与工具服务，不构成任何投资建议，不推荐任何证券标的，不对投资盈亏承担任何责任。
+                    </span>
+                    <span className="text-amber-700 dark:text-amber-300">投资有风险，入市需谨慎</span>
                 </p>
             </div>
 
             <header
                 ref={headerRef}
                 className={cn(
-                    "fixed top-16 inset-x-0 mx-auto z-40 w-[95%] max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
-                    isScrolled ? "top-6 scale-[0.98]" : "top-16"
+                    "fixed top-14 inset-x-0 mx-auto z-40 w-[95%] max-w-6xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+                    isScrolled ? "top-6 scale-[0.98]" : "top-14"
                 )}
             >
                 <div className={cn(
@@ -156,7 +161,7 @@ export function Header() {
                     {/* Logo */}
                     <Link to="/" className="flex items-center gap-3 group relative z-10 w-fit">
                         <div className="flex items-center justify-center w-10 h-10">
-                            <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                            <BarChart3 className="h-6 w-6 text-primary" />
                         </div>
                         <Logo className="h-8 w-auto text-white" />
                     </Link>
@@ -267,9 +272,11 @@ export function Header() {
                             </AnimatePresence>
                         </div>
 
-                        <Button size="sm" className="hidden sm:inline-flex rounded-full px-6 bg-white text-black hover:bg-white/90 font-semibold border-0 transition-all duration-300 hover:scale-105 active:scale-95">
-                            立即开始
-                        </Button>
+                        <Link to="/login">
+                            <Button size="sm" className="hidden sm:inline-flex rounded-full px-6 bg-white text-black hover:bg-white/90 font-semibold border-0 transition-all duration-300 hover:scale-105 active:scale-95">
+                                登录
+                            </Button>
+                        </Link>
 
                         {/* Mobile Menu Button */}
                         <button className="lg:hidden p-2 text-foreground/80 hover:text-foreground transition-colors"
@@ -305,7 +312,7 @@ export function Header() {
             </header>
 
             {/* Spacer to prevent content overlap due to fixed header */}
-            <div className="h-32"></div>
+            <div className="h-28"></div>
         </>
     );
 }

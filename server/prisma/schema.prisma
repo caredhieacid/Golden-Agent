@@ -191,3 +191,124 @@ model NewsEvent {
   @@index([ticker])
   @@map("news_event")
 }
+
+// ============================================
+// 用户角色枚举
+// ============================================
+enum Role {
+  USER
+  VIP
+  ADMIN
+}
+
+// ============================================
+// 用户状态枚举
+// ============================================
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+
+// ============================================
+// 支付状态枚举
+// ============================================
+enum PayStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ============================================
+// 用户模型
+// ============================================
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  password      String    // bcrypt hash
+  nickname      String?
+  avatar        String?
+  role          Role      @default(USER)
+  status        UserStatus @default(ACTIVE)
+
+  // 邮箱验证
+  emailVerified Boolean   @default(false)
+  verifyToken   String?   @unique
+  verifyExpires DateTime?
+
+  // 密码重置
+  resetToken    String?   @unique
+  resetExpires  DateTime?
+
+  // 时间戳
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // 关联
+  sessions      Session[]
+  payments      Payment[]
+  analytics     Analytics[]
+
+  @@map("users")
+}
+
+// ============================================
+// 会话模型
+// ============================================
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+// ============================================
+// 支付模型
+// ============================================
+model Payment {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  amount        Float
+  currency      String      @default("CNY")
+  status        PayStatus   @default(PENDING)
+  method        String?     // alipay, wechat, stripe
+  transactionId String?     @unique
+  metadata      String?     // JSON string for SQLite compatibility
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("payments")
+}
+
+// ============================================
+// 访问分析模型
+// ============================================
+model Analytics {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  // 访问信息
+  path      String
+  method    String
+  ip        String?
+  userAgent String?
+  referer   String?
+
+  // 时间
+  timestamp DateTime @default(now())
+
+  @@index([path, timestamp])
+  @@index([userId, timestamp])
+  @@map("analytics")
+}

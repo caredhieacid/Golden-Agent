@@ -108,3 +108,7 @@ mysql_data/
 # Temporary
 tmp/
 temp/
+
+# Local experiments / generated artifacts
+ai-trader-service/
+apk/
