@@ -1,342 +1,169 @@
-﻿# Golden Agent
+﻿# Golden Agent（金策智显）
 
-<p align="center">
-  <img src="docs/brand/logo.png" alt="Golden Agent Logo" width="120" />
-</p>
+Real-time market intelligence for modern investing products.
 
-<h1 align="center">Golden Agent</h1>
-<p align="center"><strong>Real-time Market Intelligence Engine for Modern Investing Products</strong></p>
-<p align="center"><strong>面向现代投资产品的实时市场情报引擎</strong></p>
+金策智显是一个端到端的实时市场情报平台：聚合多市场行情与事件流，通过 `/api/bulk` 首屏聚合 + `/api/sse` 实时推送，提供“看盘 + 异动 + 信号”的产品体验。
 
-<p align="center">
-  <a href="https://github.com/your-org/golden-agent/actions/workflows/ci.yml"><img src="https://github.com/your-org/golden-agent/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://github.com/your-org/golden-agent/actions/workflows/secret-scan.yml"><img src="https://github.com/your-org/golden-agent/actions/workflows/secret-scan.yml/badge.svg" alt="Secret Scan" /></a>
-  <a href="https://github.com/your-org/golden-agent/blob/main/LICENSE"><img src="https://img.shields.io/github/license/your-org/golden-agent" alt="License" /></a>
-  <a href="https://github.com/your-org/golden-agent/stargazers"><img src="https://img.shields.io/github/stars/your-org/golden-agent?style=social" alt="Stars" /></a>
-</p>
+- 覆盖板块：美国国会交易、SEC Form 4 内幕交易、A 股指数/板块/热股、黄金国内外价差
+- AI 分析（不交易只产出）：观点（`ai_insight`）与信号（`ai_signal`）实时流 + Agent 状态面板
+- 面向产品工程：前台/后台/数据同步/实时推送一体化，适合作为投研/情报类产品底座
 
-<p align="center">
-  English | <a href="#简体中文">简体中文</a>
-</p>
+## Demo（示意）
 
----
+> 下面图片为设计参考稿；如果你放上真实截图/GIF，这一段就是 README 的“门面”。
 
-## English
+![UI 设计参考](设计参考原稿-主页.png)
 
-### The Pitch
+## 你能做什么（Use Cases）
 
-Golden Agent is not another static finance dashboard.
+- 搭建一个实时金融情报看板（聚合多市场数据 + 自动刷新）
+- 监控国会/内幕交易异动，并沉淀为可订阅信号
+- 作为 AI 辅助投研工作台的底座（只产出观点/信号，不做交易执行）
+- 做内部投研/风控工具，或作为 hackathon 原型项目快速迭代
 
-It is an **end-to-end real-time market intelligence stack** that lets teams build products with:
+## 核心功能
 
-- Multi-source market and event ingestion
-- Fast first-screen data hydration + live push updates
-- AI-ready insight and recommendation workflows
-- User-facing app + admin console in one repository
+- **美国国会交易（STOCK Act）**
+  - 交易披露列表、议员详情、按党派/议员维度浏览
+- **SEC Form 4 内幕交易**
+  - 交易明细 + ticker 聚合汇总，便于筛选“异常活跃标的”
+- **A 股市场**
+  - 指数、板块涨跌、热股榜单与行情概览
+- **黄金市场**
+  - 国内/国际金价、汇率、价差（套利）展示 + 历史曲线
+- **实时动态**
+  - 聚合事件流（国会/内幕/基金/游说等）统一呈现
+- **AI 分析页（不交易）**
+  - Agent 状态、实时分析流、高关注信号，支持“立即分析”触发生成
 
-### Why This Project Wins Attention
+## 实时能力（Why it feels fast）
 
-| Capability | Golden Agent | Typical OSS Finance Project |
-|---|---|---|
-| Architecture depth | `Node + TypeScript + React + FastAPI + AI service` | Usually single-layer |
-| Real-time UX | `/api/bulk` + `/api/sse` built-in | Mostly polling |
-| Market coverage | Gold + CN + global indices + US political/insider events | Usually single market |
-| Production controls | Feature flags + modular services | Limited configurability |
+- **首屏快**：`GET /api/bulk` 一次返回前台所需聚合数据（避免多次请求瀑布）
+- **实时推送**：`GET /api/sse` 推送增量更新，前端自动重连
+- **内置同步调度**：后端 cron 定时任务刷新数据并广播
 
-### Product Experience
+常见 SSE 事件类型（示例）：
 
-#### Cover
+- `gold_update` / `gold_daily_update`
+- `indices_update` / `sectors_update` / `hot_stocks_update`
+- `congress_trades_update` / `insiders_trades_update`
+- `ai_status_update` / `ai_insights_update`
 
-![Golden Agent Cover](docs/screenshots/cover.png)
+## 架构图（High-Level）
 
-#### GIF Demos
+```mermaid
+flowchart TD
+  subgraph Sources[数据源]
+    A[国会披露/样例数据]
+    B[SEC Form 4/样例数据]
+    C[A股行情/板块]
+    D[黄金/汇率/价差]
+  end
 
-- User experience demo: `docs/screenshots/demo-user.gif`
-- AI insights demo: `docs/screenshots/demo-ai.gif`
-- Admin operations demo: `docs/screenshots/demo-admin.gif`
+  subgraph Server[server/ Node.js + Express + Prisma]
+    Cron[定时同步任务]
+    DB[(SQLite)]
+    API[REST API /api/*]
+    SSE[SSE /api/sse]
+    AI[AI 分析生成<br/>ai_insight / ai_signal]
+  end
 
-> Replace placeholders with your real captures before public launch.
+  subgraph Frontend[frontend_vite/ Vite + React]
+    Bulk[首屏 /api/bulk]
+    UI[页面：国会/内幕/A股/黄金/动态/AI]
+  end
 
-### Use Cases
-
-- Build a real-time market intelligence dashboard for your own investment workflow
-- Prototype an AI-assisted analyst workspace with explainable signals
-- Run event-driven monitoring for congress/insider activity and market impact
-- Use as a base for fintech hackathons, internal tools, or research products
-
-### Architecture (High-Level)
-
-```text
-Data Sources
-   -> server (Node.js + Prisma + schedulers)
-      -> REST API (/api/*)
-      -> SSE stream (/api/sse)
-      -> frontend_vite (user app)
-      -> admin (ops console)
-
-Optional AI Layer
-   -> ai-trader-service (FastAPI)
-      -> proxied through /api/ai/*
+  Sources --> Cron --> DB
+  DB --> API --> Bulk --> UI
+  DB --> AI --> DB
+  API --> SSE --> UI
 ```
 
-### Monorepo Layout
+## 快速开始（Windows 推荐）
 
-- `server/` Core API, sync jobs, Prisma schema
-- `frontend_vite/` Main user product (React + Vite)
-- `admin/` Admin console (React + Vite)
-- `backend/` Data-related FastAPI service
-- `ai-trader-service/` AI recommendation service
-- `OPEN_SOURCE_READINESS.md` Open-source release checklist
+直接运行项目根目录的 `start.bat`：
 
-### Quick Start
+- 自动安装依赖
+- 初始化数据库（Prisma）
+- 启动后端（8000）与前端（3000）
+- 自动打开浏览器
+
+## 手动启动
+
+后端（Node.js / Express / Prisma，端口 8000）：
 
 ```bash
-# 1) API
 cd server
 npm install
-cp .env.example .env
 npm run db:push
 npm run dev
-
-# 2) Frontend
-cd ../frontend_vite
-npm install
-cp .env.example .env
-npm run dev
-
-# 3) Admin
-cd ../admin
-npm install
-npm run dev
 ```
 
-Optional AI service:
+前端（Vite / React，端口 3000）：
 
 ```bash
-cd ai-trader-service
-pip install -r requirements.txt
-python main.py
+cd frontend_vite
+npm install
+npm run dev
 ```
 
-Default ports:
+可选：管理后台（若你需要运营/管理能力）：
 
-- API: `http://localhost:8000`
-- Frontend: `http://localhost:5173`
-- Admin: `http://localhost:3001`
-- AI Service: `http://localhost:8001`
+```bash
+cd admin
+npm install
+npm run dev
+```
 
-### Core APIs
+## 常用地址
 
-- `GET /api/health`
-- `GET /api/features`
-- `GET /api/bulk`
-- `GET /api/sse`
-- `GET /api/search?q=...`
-- `GET /api/ai/status`
-- `GET /api/ai/insights`
-- `GET /api/ai/recommendations`
+- 前端：`http://localhost:3000`
+- 后端 API：`http://localhost:8000`
+- SSE：`http://localhost:8000/api/sse`
+- AI 分析页：`http://localhost:3000/ai`
 
-### FAQ
+## 关键接口
 
-**Q: Is this a trading bot?**  
-A: No. It is a research and intelligence platform, not an execution engine.
+- `GET /api/health`：健康检查（含各表数据量、SSE 连接数）
+- `GET /api/bulk`：首屏聚合数据（前端 DataProvider 使用）
+- `GET /api/sse`：实时推送
+- `GET /api/search?q=...`：全局搜索
 
-**Q: Can I disable AI features?**  
-A: Yes. Use feature flags in `server/.env` (for example `ENABLE_AI=false`).
+AI（不交易只产出）：
 
-**Q: Is it suitable for production?**  
-A: It is production-oriented, but you should complete the tasks in `OPEN_SOURCE_READINESS.md` first.
+- `GET /api/ai/status`：Agent 运行状态
+- `GET /api/ai/insights?limit=50`：AI 事件流
+- `POST /api/ai/run`：手动触发一次分析生成
 
-**Q: What data model is used?**  
-A: Prisma with the schema in `server/prisma/schema.prisma`.
+## 技术栈
 
-### Star History
+- 前端：Vite + React + React Router + Radix UI + Tailwind CSS
+- 后端：Node.js + Express + TypeScript + Prisma
+- 数据库：SQLite（开发），Prisma ORM
+- 实时：SSE（Server-Sent Events）
+- 图表：Lightweight Charts / Recharts
+- 工程化：GitHub Actions 工作流（见 `.github/workflows/`）
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/golden-agent&type=Date)](https://www.star-history.com/#your-org/golden-agent&Date)
-
-### Roadmap Timeline
-
-- **Phase 1 (Foundation)**: CI, secret scanning, release hygiene
-- **Phase 2 (Reliability)**: API smoke tests, Docker one-command startup
-- **Phase 3 (Trust)**: OpenAPI docs, stronger validation and observability
-- **Phase 4 (Product Power)**: Better explainability, evaluation loops, strategy tooling
-
-### Contributing
-
-Start here:
-
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `OPEN_SOURCE_READINESS.md`
-
-### Security Notes
-
-- Never commit `.env` files
-- Rotate leaked credentials immediately
-- Use strong production secrets (`JWT_SECRET`, SMTP)
-- Restrict CORS origins in production
-
----
-
-## 简体中文
-
-### 项目定位
-
-Golden Agent 不是一个静态看盘页面集合，而是一套**端到端实时市场情报底座**。
-
-它帮助你在同一仓库内完成：
-
-- 多源行情与事件同步
-- 首屏快速聚合 + SSE 实时推送
-- AI 信号与推荐工作流
-- 用户前台 + 管理后台的产品闭环
-
-### 为什么它更容易吸引关注
-
-| 能力 | Golden Agent | 常见开源金融项目 |
-|---|---|---|
-| 架构完整度 | `Node + TypeScript + React + FastAPI + AI 服务` | 常见单层能力 |
-| 实时体验 | 内置 `/api/bulk` + `/api/sse` | 多为轮询 |
-| 市场覆盖 | 黄金 + A股 + 全球指数 + 美股事件 | 常见单市场 |
-| 可扩展性 | Feature Flags + 模块化服务 | 可控性较弱 |
-
-### 产品展示
-
-#### 封面图
-
-![Golden Agent 封面](docs/screenshots/cover.png)
-
-#### GIF 演示
-
-- 用户端演示：`docs/screenshots/demo-user.gif`
-- AI 信号演示：`docs/screenshots/demo-ai.gif`
-- 后台操作演示：`docs/screenshots/demo-admin.gif`
-
-> 发布前请替换为真实截图和录屏。
-
-### 典型使用场景
-
-- 搭建自己的实时市场情报看板
-- 快速验证 AI 辅助研究产品原型
-- 做国会/内幕交易事件的异动监控
-- 作为投研类 Hackathon 或内部工具底座
-
-### 架构概览
+## 目录结构（常用）
 
 ```text
-数据源
-   -> server (Node.js + Prisma + 定时任务)
-      -> REST API (/api/*)
-      -> SSE 推送 (/api/sse)
-      -> frontend_vite (用户前台)
-      -> admin (管理后台)
-
-可选 AI 层
-   -> ai-trader-service (FastAPI)
-      -> 通过 /api/ai/* 对外
+server/            Node.js 后端（Express + Prisma + SQLite + SSE）
+frontend_vite/     用户前台（Vite + React + Router）
+admin/             管理后台（可选）
+backend/           Python FastAPI（历史/实验用途）
+ai-trader-service/ Python AI 服务（实验用途，Windows 下注意保留文件名）
+docs/              README 相关素材与说明
 ```
 
-### 仓库结构
+## 配置与开发提示
 
-- `server/` 核心 API、同步任务、Prisma schema
-- `frontend_vite/` 用户前台（React + Vite）
-- `admin/` 管理后台（React + Vite）
-- `backend/` 数据相关 FastAPI 服务
-- `ai-trader-service/` AI 推荐服务
-- `OPEN_SOURCE_READINESS.md` 开源发布清单
+- 前端代理：`frontend_vite/vite.config.ts` 里将 `/api` 代理到 `http://localhost:8000`
+- 环境变量：
+  - 前端可用 `VITE_API_BASE_URL` 覆盖 API 基址（默认 `/api`）
+- Windows / Git：
+  - **CRLF/LF 警告**：常见换行符提示，一般不影响运行与提交
+  - **Windows 保留文件名**：避免创建 `nul`/`con`/`prn` 等文件，否则 `git add` 会失败
 
-### 本地快速启动
+## 免责声明（Disclaimer）
 
-```bash
-# 1) 后端
-cd server
-npm install
-cp .env.example .env
-npm run db:push
-npm run dev
-
-# 2) 前端
-cd ../frontend_vite
-npm install
-cp .env.example .env
-npm run dev
-
-# 3) 管理后台
-cd ../admin
-npm install
-npm run dev
-```
-
-可选 AI 服务：
-
-```bash
-cd ai-trader-service
-pip install -r requirements.txt
-python main.py
-```
-
-默认端口：
-
-- API：`http://localhost:8000`
-- 前端：`http://localhost:5173`
-- 管理后台：`http://localhost:3001`
-- AI 服务：`http://localhost:8001`
-
-### 核心接口
-
-- `GET /api/health`
-- `GET /api/features`
-- `GET /api/bulk`
-- `GET /api/sse`
-- `GET /api/search?q=...`
-- `GET /api/ai/status`
-- `GET /api/ai/insights`
-- `GET /api/ai/recommendations`
-
-### 常见问题（FAQ）
-
-**问：这是自动交易机器人吗？**  
-答：不是。它是投研与情报系统，不直接执行交易。
-
-**问：可以关闭 AI 功能吗？**  
-答：可以。在 `server/.env` 通过开关控制（例如 `ENABLE_AI=false`）。
-
-**问：可以直接上生产吗？**  
-答：建议先完成 `OPEN_SOURCE_READINESS.md` 中的发布前任务。
-
-**问：数据库模型在哪里？**  
-答：`server/prisma/schema.prisma`。
-
-### Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=your-org/golden-agent&type=Date)](https://www.star-history.com/#your-org/golden-agent&Date)
-
-### 路线图时间线
-
-- **Phase 1（基础）**：CI、密钥扫描、发布规范
-- **Phase 2（可靠性）**：关键接口 smoke tests、Docker 一键启动
-- **Phase 3（信任）**：OpenAPI 文档、更强可观测与校验
-- **Phase 4（产品力）**：可解释性增强、评估闭环、策略工具化
-
-### 贡献方式
-
-提交前请先阅读：
-
-- `CONTRIBUTING.md`
-- `SECURITY.md`
-- `OPEN_SOURCE_READINESS.md`
-
-### 安全提示
-
-- 严禁提交 `.env`
-- 密钥泄露必须立即轮换
-- 生产环境使用强密钥（`JWT_SECRET`、SMTP）
-- 生产环境收紧 CORS
-
----
-
-## Disclaimer | 免责声明
-
-This project is for research and information purposes only. It does not provide investment advice or automated trade execution.
-
-本项目仅用于研究与信息展示，不构成投资建议，也不直接执行自动交易。
+本项目仅用于研究与信息展示，不构成投资建议，也不提供自动交易执行能力。
