@@ -15,6 +15,11 @@ Report via private channel and include:
 - impact assessment
 - suggested mitigation (if available)
 
+Project maintainers should set and publish a private contact before public launch:
+
+- Security email alias (recommended): `security@<your-domain>`
+- Encrypted channel (optional): PGP key or private disclosure form
+
 ## Secrets and Configuration
 
 - Never commit `.env` files.
