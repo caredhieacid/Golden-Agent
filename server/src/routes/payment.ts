@@ -147,7 +147,7 @@ router.post('/create', async (req: Request, res: Response) => {
         userId: req.user.id,
         amount,
         currency,
-        subject: '金策智显 VIP会员',
+        subject: '天枢 VIP会员',
         description: 'VIP membership subscription',
         metadata,
       });

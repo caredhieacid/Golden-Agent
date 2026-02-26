@@ -191,6 +191,49 @@ function formatPrice(price: number | undefined, market: "us" | "cn"): string {
     return `$${price.toFixed(2)}`;
 }
 
+
+
+function buildEvidenceChain(rec: Recommendation): string[] {
+    const evidence: string[] = [];
+    const addMany = (items?: string[]) => {
+        if (!items) return;
+        for (const item of items) {
+            const v = String(item || "").trim();
+            if (v) evidence.push(v);
+            if (evidence.length >= 4) return;
+        }
+    };
+
+    addMany(rec.fundamental_analysis);
+    addMany(rec.technical_signals);
+    addMany(rec.institutional_behavior);
+
+    if (evidence.length === 0) {
+        const fallback = getReasoningText(rec.reasoning).split("|").map((s) => s.trim()).filter(Boolean);
+        addMany(fallback);
+    }
+
+    return evidence.slice(0, 4);
+}
+
+function buildInvalidationConditions(rec: Recommendation): string[] {
+    const conditions: string[] = [];
+    if (typeof rec.stop_loss === "number") {
+        conditions.push(`Price touches stop-loss (${formatPrice(rec.stop_loss, rec.market)}).`);
+    }
+    if (rec.risk_level === "high") {
+        conditions.push("Risk level remains high for multiple refresh cycles.");
+    }
+    if (rec.action === "buy") {
+        conditions.push("Primary momentum signals weaken or reverse.");
+    } else if (rec.action === "sell") {
+        conditions.push("Downtrend thesis fails and key levels are reclaimed.");
+    } else {
+        conditions.push("New catalyst invalidates neutral baseline.");
+    }
+    conditions.push("Core data source changes or freshness degrades.");
+    return conditions.slice(0, 4);
+}
 // Progress bar component
 function ConfidenceBar({ confidence }: { confidence: number }) {
     const percentage = Math.round(confidence * 100);
@@ -275,6 +318,8 @@ function RecommendationCard({ rec }: { rec: Recommendation }) {
     const modelVersion = rec.model_version || "v2.1.0";
     const dataSources = rec.data_sources || ["公开财务数据", "市场行情数据", "新闻舆情分析"];
 
+    const evidenceChain = buildEvidenceChain(rec);
+    const invalidationConditions = buildInvalidationConditions(rec);
     return (
         <Card className="bg-transparent border-white/5 hover:border-primary/30 transition-colors">
             <CardContent className="py-5 px-5">
@@ -402,6 +447,37 @@ function RecommendationCard({ rec }: { rec: Recommendation }) {
                     )}
                 </div>
 
+
+
+                {/* Explainability */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                        <div className="text-xs font-medium text-zinc-200 mb-2 flex items-center gap-2">
+                            <Database className="h-3.5 w-3.5 text-primary" />
+                            Evidence Chain
+                        </div>
+                        <ul className="space-y-1.5">
+                            {evidenceChain.map((item, idx) => (
+                                <li key={idx} className="text-xs text-muted-foreground leading-relaxed">
+                                    {idx + 1}. {item}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                        <div className="text-xs font-medium text-zinc-200 mb-2 flex items-center gap-2">
+                            <FileWarning className="h-3.5 w-3.5 text-yellow-500" />
+                            Invalidation Conditions
+                        </div>
+                        <ul className="space-y-1.5">
+                            {invalidationConditions.map((item, idx) => (
+                                <li key={idx} className="text-xs text-muted-foreground leading-relaxed">
+                                    {idx + 1}. {item}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
                 {/* Meta Info */}
                 <div className="flex items-center justify-between pt-3 border-t border-white/5">
                     <div className="flex items-center gap-3 text-[10px] text-muted-foreground">

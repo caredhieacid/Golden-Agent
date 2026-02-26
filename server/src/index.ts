@@ -1,7 +1,7 @@
-/**
- * 金策智显 — Node.js 后端入口
+﻿﻿/**
+ * 澶╂灑 DubheProject 鈥?Node.js 鍚庣鍏ュ彛
  * 
- * Express + node-cron 后台数据同步 + SSE 实时推送
+ * Express + node-cron 鍚庡彴鏁版嵁鍚屾 + SSE 瀹炴椂鎺ㄩ€?
  */
 import express from "express";
 import cors from "cors";
@@ -17,6 +17,7 @@ import searchRoutes from "./routes/search.js";
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
 import paymentRoutes from "./routes/payment.js";
+import globalRoutes from "./routes/global.js";
 import { optionalAuth } from "./middleware/auth.js";
 
 import { syncGoldSnapshot, syncGoldDaily } from "./sync/gold.js";
@@ -24,10 +25,14 @@ import { syncStockIndices, syncSectors, syncHotStocks } from "./sync/stocks.js";
 import { syncCongressData } from "./sync/congress.js";
 import { syncInsiderTrades } from "./sync/insiders.js";
 import { syncNewsEvents } from "./sync/news.js";
+import { syncGlobalIndices } from "./sync/global.js";
 import { broadcaster } from "./sse.js";
 
-const PORT = 8000;
+const PORT = Number.parseInt(process.env.PORT ?? "8000", 10);
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8001";
+const ENABLE_AI = String(process.env.ENABLE_AI ?? "true").toLowerCase() !== "false";
+const ENABLE_CN_MARKET = String(process.env.ENABLE_CN_MARKET ?? "true").toLowerCase() !== "false";
+const ENABLE_GLOBAL_MARKET = String(process.env.ENABLE_GLOBAL_MARKET ?? "true").toLowerCase() !== "false";
 const app = express();
 
 type AIAgentId = "congress" | "insiders" | "gold" | "astocks";
@@ -84,6 +89,27 @@ const aiStatuses: Record<AIAgentId, AIAgentStatus> = {
     },
 };
 
+function normalizeAiText(input: string | null | undefined): string | null | undefined {
+    if (typeof input !== "string" || input.length === 0) return input;
+
+    const replacements: Array<[string, string]> = [
+        ["鍥戒細浜ゆ槗 Agent", "国会交易 Agent"],
+        ["鍐呭箷浜ゆ槗 Agent", "内幕交易 Agent"],
+        ["榛勯噾濂楀埄 Agent", "黄金套利 Agent"],
+        ["A鑲＄儹鐐?Agent", "A股热点 Agent"],
+        ["銆怉鑲°€戞澘鍧楄蛋寮猴細", "【A股】板块走强："],
+        ["銆愰粍閲戙€戝浗鍐呭浠峰樊鍋忕", "【黄金】国内外价差偏离"],
+    ];
+
+    let out = input;
+    for (const [from, to] of replacements) {
+        out = out.split(from).join(to);
+    }
+    out = out.replace(/銆[^\s]{0,8}鑲°€戞澘鍧楄蛋寮猴細/g, "【A股】板块走强：");
+    out = out.replace(/銆愰粍閲戙€戝浗鍐呭浠峰樊鍋忕/g, "【黄金】国内外价差偏离");
+    return out;
+}
+
 function snapshotAiStatuses(): AIAgentStatus[] {
     return Object.values(aiStatuses);
 }
@@ -111,10 +137,10 @@ async function fetchAiInsights(limit: number = 50) {
     return rows.map(n => ({
         id: n.id,
         type: n.type,
-        title: n.title,
-        summary: n.summary,
+        title: normalizeAiText(n.title),
+        summary: normalizeAiText(n.summary),
         ticker: n.ticker,
-        related_entity: n.relatedEntity,
+        related_entity: normalizeAiText(n.relatedEntity),
         url: n.url,
         timestamp: n.timestamp?.toISOString(),
     }));
@@ -159,6 +185,10 @@ async function writeAiEvent(params: {
 }
 
 async function runAiAgents(reason: string) {
+    if (!ENABLE_AI) {
+        return { createdCount: 0, insights: [] };
+    }
+
     const agentIds: AIAgentId[] = ["congress", "insiders", "gold", "astocks"];
     let createdCount = 0;
 
@@ -193,8 +223,8 @@ async function runAiAgents(reason: string) {
                     const [ticker, meta] = top;
                     const ok = await writeAiEvent({
                         type: "ai_insight",
-                        title: `【国会】${ticker} 短期披露频次上升`,
-                        summary: `最近披露记录中，${ticker}${meta.company ? `（${meta.company}）` : ""} 出现次数偏高（约 ${meta.count} 次/120 条）。建议结合议员分布与时间窗进一步筛选。`,
+                        title: `Congress: ${ticker} disclosure activity increased`,
+                        summary: `Recent filings show elevated frequency for ${ticker}${meta.company ? ` (${meta.company})` : ""}, around ${meta.count} times in the latest 120 records.`,
                         ticker,
                         relatedEntity: "Congress",
                     });
@@ -235,8 +265,8 @@ async function runAiAgents(reason: string) {
                     const type: (typeof AI_EVENT_TYPES)[number] = meta.buy >= meta.sell ? "ai_signal" : "ai_insight";
                     const ok = await writeAiEvent({
                         type,
-                        title: `【内幕】${ticker} 近期交易金额偏大`,
-                        summary: `${ticker}${meta.company ? `（${meta.company}）` : ""} 近期 Form 4 记录中累计交易金额偏大（约 $${(meta.value / 1_000_000).toFixed(2)}M），买入/卖出次数 ${meta.buy}/${meta.sell}。`,
+                        title: `Insiders: ${ticker} recent transaction value is elevated`,
+                        summary: `${ticker}${meta.company ? ` (${meta.company})` : ""} has elevated Form 4 transaction value recently (about $${(meta.value / 1_000_000).toFixed(2)}M), buy/sell count ${meta.buy}/${meta.sell}.`,
                         ticker,
                         relatedEntity: "SEC Form 4",
                     });
@@ -252,7 +282,7 @@ async function runAiAgents(reason: string) {
                     const ok = await writeAiEvent({
                         type,
                         title: `【黄金】国内外价差偏离 ${spread.toFixed(2)}%`,
-                        summary: `监测到国内外金价价差偏离（spread_pct=${spread.toFixed(2)}%），可进一步结合汇率与盘中波动判断是否存在短时套利窗口。`,
+                        summary: `Detected deviation in domestic/overseas gold spread (spread_pct=${spread.toFixed(2)}%). Combine with FX and intraday volatility to evaluate short-term arbitrage windows.`,
                         relatedEntity: "Gold",
                     });
                     if (ok) createdCount += 1;
@@ -274,7 +304,7 @@ async function runAiAgents(reason: string) {
                     const ok = await writeAiEvent({
                         type,
                         title: `【A股】板块走强：${topSector.name} +${topSector.changePct.toFixed(2)}%`,
-                        summary: `板块强度靠前：${topSector.name}（${topSector.changePct.toFixed(2)}%）。领涨：${topSector.leaderStock ?? "N/A"}（${(topSector.leaderChangePct ?? 0).toFixed(2)}%）。可关注持续性与成交额配合。`,
+                        summary: `Top sector strength: ${topSector.name} (${topSector.changePct.toFixed(2)}%). Leader: ${topSector.leaderStock ?? "N/A"} (${(topSector.leaderChangePct ?? 0).toFixed(2)}%). Watch continuation and volume confirmation.`,
                         relatedEntity: topSector.name,
                     });
                     if (ok) createdCount += 1;
@@ -304,17 +334,17 @@ async function runAiAgents(reason: string) {
     broadcaster.broadcast("ai_insights_update", insights);
 
     if (createdCount > 0) {
-        console.log(`[AI] 新增 ${createdCount} 条分析事件 (${reason})`);
+        console.log(`[AI] 鏂板 ${createdCount} 鏉″垎鏋愪簨浠?(${reason})`);
     }
 
     return { createdCount, insights };
 }
 
-// ============= 中间件 =============
+// ============= 涓棿浠?=============
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// 请求日志（排除高频的 SSE 和 favicon）
+// 璇锋眰鏃ュ織锛堟帓闄ら珮棰戠殑 SSE 鍜?favicon锛?
 app.use((req, _res, next) => {
     if (!req.path.includes("favicon") && !req.path.includes("/sse")) {
         console.log(`[API] ${req.method} ${req.path}`);
@@ -346,7 +376,7 @@ app.use("/api", optionalAuth, async (req, _res, next) => {
     next();
 });
 
-// ============= 路由 =============
+// ============= 璺敱 =============
 app.use("/api/gold", goldRoutes);
 app.use("/api/stocks", stockRoutes);
 app.use("/api/congress", congressRoutes);
@@ -356,8 +386,28 @@ app.use("/api/search", searchRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/global", globalRoutes);
 
-// ============= SSE 实时推送端点 =============
+app.get("/api/features", (_req, res) => {
+    res.json({
+        ai: ENABLE_AI,
+        cn_market: ENABLE_CN_MARKET,
+        global_market: ENABLE_GLOBAL_MARKET,
+        timestamp: new Date().toISOString(),
+    });
+});
+
+app.use("/api/ai", (_req, res, next) => {
+    if (!ENABLE_AI) {
+        return res.status(503).json({
+            error: "AI features are disabled by configuration",
+            feature: "ai",
+        });
+    }
+    next();
+});
+
+// ============= SSE 瀹炴椂鎺ㄩ€佺鐐?=============
 app.get("/api/sse", (req, res) => {
     res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -393,7 +443,7 @@ app.get("/api/sse", (req, res) => {
 
     clientId = broadcaster.addClient(res);
 
-    // 心跳，防止连接超时
+    // 蹇冭烦锛岄槻姝㈣繛鎺ヨ秴鏃?
     heartbeat = setInterval(() => {
         safeWrite(":heartbeat\n\n");
     }, 30000);
@@ -403,11 +453,11 @@ app.get("/api/sse", (req, res) => {
     res.on("error", cleanup);
 });
 
-// ============= 批量数据端点 (首次加载用) =============
+// ============= 鎵归噺鏁版嵁绔偣 (棣栨鍔犺浇鐢? =============
 app.get("/api/bulk", async (_req, res) => {
     try {
         const [
-            goldSnapshot, goldDaily, indices, sectors, hotStocks,
+            goldSnapshot, goldDaily, allIndices, sectors, hotStocks,
             congressTrades, politicians, insiderTrades, insiderSummary, newsEvents, aiInsights
         ] = await Promise.all([
             prisma.goldSnapshot.findMany({ orderBy: { timestamp: "desc" }, take: 1 }),
@@ -427,7 +477,7 @@ app.get("/api/bulk", async (_req, res) => {
                 orderBy: { fullName: "asc" }
             }),
             prisma.insiderTrade.findMany({ orderBy: { filingDate: "desc" }, take: 300 }),
-            // 内幕汇总：按 ticker 聚合
+            // 鍐呭箷姹囨€伙細鎸?ticker 鑱氬悎
             prisma.insiderTrade.groupBy({
                 by: ["ticker"],
                 _count: { id: true },
@@ -443,7 +493,11 @@ app.get("/api/bulk", async (_req, res) => {
             }),
         ]);
 
-        // 格式化金价快照
+        // 鍒嗙A鑲″拰鍏ㄧ悆鎸囨暟锛堝吋瀹规棫鏁版嵁锛宮arket瀛楁鍙兘涓嶅瓨鍦級
+        const indices = allIndices.filter((i: any) => !i.market || i.market === "cn");
+        const globalIndicesRaw = allIndices.filter((i: any) => i.market && i.market !== "cn");
+
+        // 鏍煎紡鍖栭噾浠峰揩鐓?
         const latestGold = goldSnapshot[0];
         const goldPrices = latestGold ? {
             international_usd: latestGold.priceUsd,
@@ -453,7 +507,7 @@ app.get("/api/bulk", async (_req, res) => {
             updated_at: latestGold.timestamp?.toISOString(),
         } : null;
 
-        // 格式化日线
+        // 鏍煎紡鍖栨棩绾?
         const goldHistory = goldDaily.map(d => ({
             date: d.date,
             open: d.open,
@@ -462,7 +516,7 @@ app.get("/api/bulk", async (_req, res) => {
             close: d.close,
         }));
 
-        // 格式化指数
+        // 鏍煎紡鍖栨寚鏁?
         const fmtIndices = indices.map(i => ({
             code: i.code, name: i.name,
             price: i.price, change_pct: i.changePct,
@@ -470,14 +524,14 @@ app.get("/api/bulk", async (_req, res) => {
             volume: i.volume, amount: i.amount,
         }));
 
-        // 格式化板块
+        // 鏍煎紡鍖栨澘鍧?
         const fmtSectors = sectors.map(s => ({
             name: s.name, change_pct: s.changePct,
             leader_stock: s.leaderStock, leader_change_pct: s.leaderChangePct,
             market_cap: s.marketCap, amount: s.amount,
         }));
 
-        // 格式化热股
+        // 鏍煎紡鍖栫儹鑲?
         const fmtHot = hotStocks.map(h => ({
             code: h.code, name: h.name,
             price: h.price, change_pct: h.changePct,
@@ -487,7 +541,7 @@ app.get("/api/bulk", async (_req, res) => {
             pe_ratio: h.peRatio,
         }));
 
-        // 格式化国会交易
+        // 鏍煎紡鍖栧浗浼氫氦鏄?
         const fmtTrades = congressTrades.map(t => ({
             id: t.id,
             politician_name: t.politicianName,
@@ -503,7 +557,7 @@ app.get("/api/bulk", async (_req, res) => {
             disclosure_date: t.disclosureDate?.toISOString(),
         }));
 
-        // 格式化议员
+        // 鏍煎紡鍖栬鍛?
         const fmtPols = politicians.map(p => ({
             id: p.id,
             full_name: p.fullName,
@@ -513,7 +567,7 @@ app.get("/api/bulk", async (_req, res) => {
             trade_count: p.trades.length,
         }));
 
-        // 格式化内幕交易
+        // 鏍煎紡鍖栧唴骞曚氦鏄?
         const fmtInsiders = insiderTrades.map(t => ({
             id: t.id, ticker: t.ticker,
             company_name: t.companyName, insider_name: t.insiderName,
@@ -524,14 +578,14 @@ app.get("/api/bulk", async (_req, res) => {
             transaction_date: t.transactionDate?.toISOString(),
         }));
 
-        // 格式化内幕汇总
+        // 鏍煎紡鍖栧唴骞曟眹鎬?
         const fmtInsiderSummary = insiderSummary.map(s => ({
             ticker: s.ticker,
             trade_count: s._count.id,
             total_value: s._sum.totalValue,
         }));
 
-        // 格式化新闻
+        // 鏍煎紡鍖栨柊闂?
         const fmtNews = newsEvents.map(n => ({
             id: n.id, type: n.type,
             title: n.title, summary: n.summary,
@@ -542,17 +596,35 @@ app.get("/api/bulk", async (_req, res) => {
         const fmtAiInsights = aiInsights.map(n => ({
             id: n.id,
             type: n.type,
-            title: n.title,
-            summary: n.summary,
+            title: normalizeAiText(n.title),
+            summary: normalizeAiText(n.summary),
             ticker: n.ticker,
-            related_entity: n.relatedEntity,
+            related_entity: normalizeAiText(n.relatedEntity),
             url: n.url,
             timestamp: n.timestamp?.toISOString(),
         }));
 
+        // 鏍煎紡鍖栧叏鐞冩寚鏁帮紙鎸夊競鍦哄垎缁勶級
+        const fmtGlobalIndices: Record<string, any[]> = {};
+        for (const gi of globalIndicesRaw) {
+            const market = gi.market || "other";
+            if (!fmtGlobalIndices[market]) {
+                fmtGlobalIndices[market] = [];
+            }
+            fmtGlobalIndices[market].push({
+                code: gi.code,
+                name: gi.name,
+                market: gi.market,
+                price: gi.price,
+                change_pct: gi.changePct,
+                change_amount: gi.changeAmount,
+            });
+        }
+
         res.json({
             gold: { prices: goldPrices, history: goldHistory },
             stocks: { indices: fmtIndices, sectors: fmtSectors, hot: fmtHot },
+            global: fmtGlobalIndices,
             congress: { trades: fmtTrades, politicians: fmtPols },
             insiders: { trades: fmtInsiders, summary: fmtInsiderSummary },
             news: fmtNews,
@@ -560,7 +632,7 @@ app.get("/api/bulk", async (_req, res) => {
             timestamp: new Date().toISOString(),
         });
     } catch (err) {
-        console.error("[bulk] 数据加载失败:", err);
+        console.error("[bulk] 鏁版嵁鍔犺浇澶辫触:", err);
         res.status(500).json({ error: "Bulk data load failed" });
     }
 });
@@ -716,7 +788,7 @@ app.post("/api/ai/recommendations/run", async (req, res) => {
     }
 });
 
-// 健康检查
+// 鍋ュ悍妫€鏌?
 app.get("/api/health", async (_req, res) => {
     const goldCount = await prisma.goldSnapshot.count();
     const dailyCount = await prisma.goldDaily.count();
@@ -754,7 +826,7 @@ app.get("/api/health", async (_req, res) => {
     });
 });
 
-// ============= 带广播的同步包装 =============
+// ============= 甯﹀箍鎾殑鍚屾鍖呰 =============
 async function syncAndBroadcast(
     syncFn: () => Promise<any>,
     eventType: string,
@@ -765,13 +837,13 @@ async function syncAndBroadcast(
         const data = await fetchFn();
         broadcaster.broadcast(eventType, data);
     } catch (err) {
-        console.error(`[broadcast] ${eventType} 失败:`, err);
+        console.error(`[broadcast] ${eventType} 澶辫触:`, err);
     }
 }
 
-// ============= 首轮数据同步 =============
+// ============= 棣栬疆鏁版嵁鍚屾 =============
 async function initialSync() {
-    console.log("\n🚀 首轮数据同步开始...\n");
+    console.log("\n馃殌 棣栬疆鏁版嵁鍚屾寮€濮?..\n");
 
     await Promise.allSettled([
         syncGoldSnapshot(),
@@ -781,17 +853,18 @@ async function initialSync() {
         syncHotStocks(),
         syncCongressData(),
         syncInsiderTrades(),
+        syncGlobalIndices(),
     ]);
 
-    // 新闻事件依赖其他数据，需要后执行
+    // 鏂伴椈浜嬩欢渚濊禆鍏朵粬鏁版嵁锛岄渶瑕佸悗鎵ц
     await syncNewsEvents();
 
     await runAiAgents("initial_sync");
 
-    console.log("\n✅ 首轮数据同步完成!\n");
+    console.log("\n鉁?棣栬疆鏁版嵁鍚屾瀹屾垚!\n");
 }
 
-// ============= 数据获取辅助函数（用于 SSE 广播） =============
+// ============= 鏁版嵁鑾峰彇杈呭姪鍑芥暟锛堢敤浜?SSE 骞挎挱锛?=============
 async function fetchGoldForSSE() {
     const snap = await prisma.goldSnapshot.findFirst({ orderBy: { timestamp: "desc" } });
     return snap ? {
@@ -910,42 +983,50 @@ async function fetchInsidersForSSE() {
     };
 }
 
-// ============= Cron 调度（带 SSE 广播）=============
+// ============= Cron 璋冨害锛堝甫 SSE 骞挎挱锛?============
 function startCronJobs() {
-    // 每 60 秒: 金价快照 + 指数
+    // 姣?60 绉? 閲戜环蹇収 + 鎸囨暟
     cron.schedule("* * * * *", async () => {
-        console.log("[cron] 每分钟同步: 金价 + 指数 + 国会 + 内幕");
-        await Promise.allSettled([
+        console.log("[cron] 姣忓垎閽熷悓姝? 閲戜环 + 鎸囨暟 + 鍥戒細 + 鍐呭箷");
+        const jobs: Promise<void>[] = [
             syncAndBroadcast(syncGoldSnapshot, "gold_update", fetchGoldForSSE),
-            syncAndBroadcast(syncStockIndices, "indices_update", fetchIndicesForSSE),
             syncAndBroadcast(syncCongressData, "congress_trades_update", fetchCongressForSSE),
             syncAndBroadcast(syncInsiderTrades, "insiders_trades_update", fetchInsidersForSSE),
-        ]);
+        ];
+        if (ENABLE_CN_MARKET) {
+            jobs.push(syncAndBroadcast(syncStockIndices, "indices_update", fetchIndicesForSSE));
+        }
+        await Promise.allSettled(jobs);
 
         await runAiAgents("cron_1min");
     });
 
-    // 每 5 分钟: 板块 + 热股
+    // 姣?5 鍒嗛挓: 鏉垮潡 + 鐑偂 + 鍏ㄧ悆鎸囨暟
     cron.schedule("*/5 * * * *", async () => {
-        console.log("[cron] 每 5 分钟同步: 板块 + 热股");
-        await Promise.allSettled([
-            syncAndBroadcast(syncSectors, "sectors_update", fetchSectorsForSSE),
-            syncAndBroadcast(syncHotStocks, "hot_stocks_update", fetchHotStocksForSSE),
-        ]);
+        console.log("[cron] 姣?5 鍒嗛挓鍚屾: 鏉垮潡 + 鐑偂 + 鍏ㄧ悆鎸囨暟");
+        const jobs: Promise<void>[] = [];
+        if (ENABLE_CN_MARKET) {
+            jobs.push(syncAndBroadcast(syncSectors, "sectors_update", fetchSectorsForSSE));
+            jobs.push(syncAndBroadcast(syncHotStocks, "hot_stocks_update", fetchHotStocksForSSE));
+        }
+        if (ENABLE_GLOBAL_MARKET) {
+            jobs.push(syncGlobalIndices());
+        }
+        await Promise.allSettled(jobs);
     });
 
-    // 每天 18:00: 日线数据
+    // 姣忓ぉ 18:00: 鏃ョ嚎鏁版嵁
     cron.schedule("0 18 * * *", async () => {
-        console.log("[cron] 每日同步: 金价日线");
+        console.log("[cron] 姣忔棩鍚屾: 閲戜环鏃ョ嚎");
         await syncGoldDaily();
-        broadcaster.broadcast("gold_daily_update", { message: "日线已更新" });
+        broadcaster.broadcast("gold_daily_update", { message: "gold daily updated" });
     });
 
-    // 每小时整点: AI 推荐分析
+    // 姣忓皬鏃舵暣鐐? AI 鎺ㄨ崘鍒嗘瀽
     cron.schedule("0 * * * *", async () => {
-        console.log("[cron] 每小时 AI 推荐");
+        console.log("[cron] 姣忓皬鏃?AI 鎺ㄨ崘");
         try {
-            // 并行触发 A 股和美股分析
+            // 骞惰瑙﹀彂 A 鑲″拰缇庤偂鍒嗘瀽
             const [usRes, cnRes] = await Promise.allSettled([
                 fetch(`${AI_SERVICE_URL}/analyze`, {
                     method: "POST",
@@ -959,10 +1040,10 @@ function startCronJobs() {
                 }),
             ]);
 
-            // 等待一小段时间后获取结果
+            // 绛夊緟涓€灏忔鏃堕棿鍚庤幏鍙栫粨鏋?
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            // 获取结果并广播
+            // 鑾峰彇缁撴灉骞跺箍鎾?
             try {
                 const [usRecs, cnRecs] = await Promise.all([
                     fetch(`${AI_SERVICE_URL}/recommendations?market=us&limit=10`).then(r => r.ok ? r.json() : { recommendations: [] }),
@@ -975,42 +1056,60 @@ function startCronJobs() {
                     timestamp: new Date().toISOString(),
                 });
 
-                console.log(`[AI Service] 推荐已更新: US=${usRecs.recommendations?.length || 0}, CN=${cnRecs.recommendations?.length || 0}`);
+                console.log(`[AI Service] 鎺ㄨ崘宸叉洿鏂? US=${usRecs.recommendations?.length || 0}, CN=${cnRecs.recommendations?.length || 0}`);
             } catch (fetchErr) {
-                console.error("[AI Service] 获取推荐结果失败:", fetchErr);
+                console.error("[AI Service] 鑾峰彇鎺ㄨ崘缁撴灉澶辫触:", fetchErr);
             }
         } catch (err) {
-            console.error("[AI Service] 分析失败:", err);
+            console.error("[AI Service] 鍒嗘瀽澶辫触:", err);
         }
     });
 
-    console.log("⏰ Cron 已启动: 金价/指数/国会/内幕(1min) | 板块/热股(5min) | 日线(18:00) | AI推荐(每小时)");
-    console.log("📡 SSE 实时推送已启用");
+    console.log("鈴?Cron 宸插惎鍔? 閲戜环/鎸囨暟/鍥戒細/鍐呭箷(1min) | 鏉垮潡/鐑偂(5min) | 鏃ョ嚎(18:00) | AI鎺ㄨ崘(姣忓皬鏃?");
+    console.log("馃摗 SSE 瀹炴椂鎺ㄩ€佸凡鍚敤");
 }
 
-// ============= 启动 =============
+// ============= 鍚姩 =============
 async function main() {
-    console.log("═══════════════════════════════════════");
-    console.log("  金策智显 · Node.js 后端");
+    console.log("========================================");
+    console.log("  澶╂灑 DubheProject 路 Node.js 鍚庣");
     console.log("  Runtime: Node.js + Express + Prisma + SQLite + SSE");
-    console.log("═══════════════════════════════════════\n");
+    console.log("========================================\\n");
 
-    // 首轮同步
-    await initialSync();
+    // 棣栬疆鍚屾
+    // Start HTTP first to avoid blocking /api and /api/sse during long initial sync
 
-    // 启动定时任务
-    startCronJobs();
-
-    // 启动 HTTP 服务
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         console.log(`\n🌐 API 服务已启动: http://localhost:${PORT}`);
         console.log(`   健康检查: http://localhost:${PORT}/api/health`);
         console.log(`   批量数据: http://localhost:${PORT}/api/bulk`);
         console.log(`   SSE 推送: http://localhost:${PORT}/api/sse\n`);
+
+        // Run initial sync in background, then start cron jobs
+        void (async () => {
+            try {
+                await initialSync();
+            } catch (err) {
+                console.error("[startup] initial sync failed:", err);
+            } finally {
+                startCronJobs();
+            }
+        })();
+    });
+
+    server.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "EADDRINUSE") {
+            console.error(`[startup] Port ${PORT} is already in use. Stop the existing process or set PORT to a different value.`);
+            process.exit(1);
+            return;
+        }
+
+        console.error("[startup] failed to bind HTTP server:", err);
+        process.exit(1);
     });
 }
 
 main().catch((err) => {
-    console.error("❌ 启动失败:", err);
+    console.error("鉂?鍚姩澶辫触:", err);
     process.exit(1);
 });

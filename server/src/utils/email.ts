@@ -47,18 +47,18 @@ export async function sendVerificationEmail(
     await transporter.sendMail({
       from: FROM_EMAIL,
       to: email,
-      subject: '金策智显 - 邮箱验证',
+      subject: '天枢 - 邮箱验证',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>欢迎注册金策智显</h2>
+          <h2>欢迎注册天枢</h2>
           <p>您好 ${username}，</p>
-          <p>感谢您注册金策智显。请点击下方按钮验证您的邮箱地址：</p>
+          <p>感谢您注册天枢。请点击下方按钮验证您的邮箱地址：</p>
           <a href="${verifyUrl}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
             验证邮箱
           </a>
           <p>此链接将在24小时后失效。</p>
           <p>如果您没有注册此账号，请忽略此邮件。</p>
-          <p>金策智显团队</p>
+          <p>天枢团队</p>
         </div>
       `,
     });
@@ -88,7 +88,7 @@ export async function sendPasswordResetEmail(
     await transporter.sendMail({
       from: FROM_EMAIL,
       to: email,
-      subject: '金策智显 - 密码重置',
+      subject: '天枢 - 密码重置',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>密码重置请求</h2>
@@ -99,7 +99,7 @@ export async function sendPasswordResetEmail(
           </a>
           <p>此链接将在1小时后失效。</p>
           <p>如果您没有请求重置密码，请忽略此邮件。</p>
-          <p>金策智显团队</p>
+          <p>天枢团队</p>
         </div>
       `,
     });
@@ -125,10 +125,10 @@ export async function sendWelcomeEmail(
     await transporter.sendMail({
       from: FROM_EMAIL,
       to: email,
-      subject: '金策智显 - 欢迎加入',
+      subject: '天枢 - 欢迎加入',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>欢迎加入金策智显！</h2>
+          <h2>欢迎加入天枢！</h2>
           <p>您好 ${username}，</p>
           <p>您的账号已成功验证。现在您可以：</p>
           <ul>
@@ -140,13 +140,57 @@ export async function sendWelcomeEmail(
           <a href="${FRONTEND_URL}" style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;">
             开始探索
           </a>
-          <p>金策智显团队</p>
+          <p>天枢团队</p>
         </div>
       `,
     });
     return { success: true };
   } catch (error) {
     console.error('Failed to send welcome email:', error);
+    return { success: false, error: 'Failed to send email' };
+  }
+}
+
+/**
+ * Send verification code email (6-digit code)
+ */
+export async function sendVerificationCodeEmail(
+  email: string,
+  code: string,
+  type: 'register' | 'reset' | 'change'
+): Promise<{ success: boolean; error?: string }> {
+  if (!transporter) {
+    console.warn('Email service not configured. Verification code not sent.');
+    return { success: false, error: 'Email service not configured' };
+  }
+
+  const typeText = type === 'register' ? '注册验证' : type === 'reset' ? '密码重置' : '更换邮箱';
+  const expireText = '5分钟';
+
+  try {
+    await transporter.sendMail({
+      from: FROM_EMAIL,
+      to: email,
+      subject: `天枢 - ${typeText}码`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #4F46E5;">天枢 ${typeText}</h2>
+          <p>您好，</p>
+          <p>您正在进行${typeText}操作，验证码如下：</p>
+          <div style="background-color: #f3f4f6; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #4F46E5;">${code}</span>
+          </div>
+          <p style="color: #666; font-size: 14px;">验证码将在${expireText}后失效，请尽快使用。</p>
+          <p style="color: #999; font-size: 12px;">如果您没有进行此操作，请忽略此邮件。</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #999; font-size: 12px;">天枢团队</p>
+        </div>
+      `,
+    });
+    console.log(`[Email] 验证码已发送到 ${email}: ${code}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to send verification code email:', error);
     return { success: false, error: 'Failed to send email' };
   }
 }

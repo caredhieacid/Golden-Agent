@@ -1,4 +1,5 @@
 import svgCaptcha from 'svg-captcha';
+import { randomUUID } from 'crypto';
 import { prisma } from '../db.js';
 
 const CAPTCHA_EXPIRES_IN = parseInt(process.env.CAPTCHA_EXPIRES_IN || '300000', 10); // 5 minutes default
@@ -35,7 +36,7 @@ export function generateCaptcha(): CaptchaResult {
     height: 50,
   });
 
-  const captchaId = crypto.randomUUID();
+  const captchaId = randomUUID();
   const expiresAt = Date.now() + CAPTCHA_EXPIRES_IN;
 
   captchaStore.set(captchaId, {

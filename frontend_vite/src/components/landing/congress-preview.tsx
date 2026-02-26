@@ -116,6 +116,11 @@ export function CongressPreview() {
                 )}
             </div>
 
+            {/* Source Disclaimer */}
+            <div className="mt-4 pt-3 border-t border-white/5 text-[10px] text-muted-foreground/60 text-center relative z-10">
+                📚 数据来源：美国官方公开披露 (House/Senate)
+            </div>
+
             {/* Background Gradient Blob */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-to-br from-primary/5 via-transparent to-blue-500/5 blur-3xl pointer-events-none opacity-50 group-hover:opacity-100 transition-opacity duration-700"></div>
         </div>

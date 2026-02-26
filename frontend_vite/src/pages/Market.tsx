@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Activity, BarChart2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, BarChart2, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ResponsiveContainer, Treemap, Tooltip as RechartsTooltip } from "recharts";
@@ -191,10 +191,21 @@ const CustomizedContent = (props: any) => {
 };
 
 export default function Market() {
-    const { stocks, ready, sseConnected } = useData();
+    const { stocks, global: globalIndices, ready, sseConnected } = useData();
     const indices = stocks.indices as StockIndex[];
     const hotStocks = stocks.hot as StockItem[];
     const sectors = stocks.sectors as Sector[];
+
+    // 市场标签映射
+    const MARKET_LABELS: Record<string, { name: string; flag: string }> = {
+        us: { name: "美股", flag: "🇺🇸" },
+        hk: { name: "港股", flag: "🇭🇰" },
+        jp: { name: "日股", flag: "🇯🇵" },
+        eu: { name: "欧洲", flag: "🇪🇺" },
+        au: { name: "澳洲", flag: "🇦🇺" },
+        kr: { name: "韩国", flag: "🇰🇷" },
+        sg: { name: "新加坡", flag: "🇸🇬" },
+    };
 
 
     const treemapData = useMemo(() => {
@@ -303,6 +314,48 @@ export default function Market() {
                         })
                     )}
                 </motion.div>
+
+                {/* 全球指数 */}
+                {Object.keys(globalIndices).length > 0 && (
+                    <motion.div variants={itemVariants}>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Globe className="h-5 w-5 text-blue-400" />
+                            <h2 className="text-xl font-bold text-white">全球市场</h2>
+                            <span className="text-xs text-muted-foreground ml-2">Global Markets</span>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            {Object.entries(globalIndices).flatMap(([market, indices]) =>
+                                indices.slice(0, 4).map((idx: any, i: number) => {
+                                    const marketInfo = MARKET_LABELS[market] || { name: market.toUpperCase(), flag: "🌍" };
+                                    const isUp = (idx.change_pct ?? 0) > 0;
+                                    return (
+                                        <motion.div
+                                            key={`${market}-${idx.code}`}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: i * 0.05 }}
+                                            className="glass-card rounded-xl p-4 relative overflow-hidden group hover:-translate-y-0.5 transition-transform"
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    <span>{marketInfo.flag}</span>
+                                                    <span>{marketInfo.name}</span>
+                                                </span>
+                                                <Badge variant="outline" className={cn("border-0 text-[10px]", isUp ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400")}>
+                                                    {isUp ? "+" : ""}{fmt(idx.change_pct)}%
+                                                </Badge>
+                                            </div>
+                                            <div className="text-lg font-bold text-white truncate mb-1">{idx.name}</div>
+                                            <div className={cn("text-2xl font-bold font-mono", isUp ? "text-green-400" : "text-red-400")}>
+                                                {fmt(idx.price)}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </motion.div>
+                )}
 
                 <div className="grid gap-6 md:grid-cols-7">
                     {/* 热门板块 Treemap */}

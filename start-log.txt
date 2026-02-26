@@ -1,0 +1,51 @@
+==========================================
+      天枢 DubheProject
+        一键启动脚本 (Node.js Ver)
+==========================================
+
+[1/4] 安装/检查后端依赖 (Server)...
+     后端 node_modules 已存在，跳过安装
+     正在初始化数据库 (Prisma db push)...
+
+> golden-agent-server@1.0.0 db:push
+> prisma db push --skip-generate
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": SQLite database "golden-agent.db" at "file:./golden-agent.db"
+
+The database is already in sync with the Prisma schema.
+
+[2/4] 安装/检查前端依赖 (Frontend)...
+     前端 node_modules 已存在，跳过安装
+'��装' is not recognized as an internal or external command,
+operable program or batch file.
+     检查 Python 依赖...
+[4/4] 启动服务...
+     启动后端服务 (端口 8000)...
+     等待后端启动 (3秒)...
+ERROR: Input redirection is not supported, exiting the process immediately.
+     启动前端服务 (端口 3000)...
+'ai-trader-service' is not recognized as an internal or external command,
+operable program or batch file.
+'启动' is not recognized as an internal or external command,
+operable program or batch file.
+
+正在等待服务启动 (10秒)...
+ERROR: Input redirection is not supported, exiting the process immediately.
+正在检查服务状态...
+     后端服务: 启动中或异常
+
+==========================================
+ 服务启动完成！
+ 前端页面: http://localhost:3000
+ 后端接口: http://localhost:8000
+==========================================
+
+正在打开浏览器...
+ERROR: Input redirection is not supported, exiting the process immediately.
+
+提示: 关闭此窗口不会影响服务运行
+      要停止服务，请关闭对应的命令行窗口
+
+Press any key to continue . . . 

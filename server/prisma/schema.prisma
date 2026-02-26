@@ -1,4 +1,3 @@
-// Prisma Schema — 金策智显数据库
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,45 +6,34 @@ datasource db {
   provider = "sqlite"
   url      = "file:./golden-agent.db"
 }
-
-// ============================================
-// 黄金价格快照（每分钟一条，用于日内走势）
-// ============================================
 model GoldSnapshot {
   id           Int      @id @default(autoincrement())
   timestamp    DateTime @default(now())
-  priceUsd     Float?   // COMEX 美元/盎司
-  priceCny     Float?   // Au9999 人民币/克
-  exchangeRate Float?   // USD/CNY
-  spreadPct    Float?   // 国内外价差 %
+  priceUsd     Float?
+  priceCny     Float?
+  exchangeRate Float?
+  spreadPct    Float?
 
   @@index([timestamp])
   @@map("gold_snapshot")
 }
-
-// ============================================
-// 黄金每日收盘（用于历史走势图）
-// ============================================
 model GoldDaily {
   id       Int      @id @default(autoincrement())
   date     DateTime @unique
   open     Float?
   high     Float?
   low      Float?
-  close    Float    // 收盘价 CNY/克
+  close    Float
   volume   Float?
 
   @@index([date])
   @@map("gold_daily")
 }
-
-// ============================================
-// A 股指数实时行情
-// ============================================
 model StockIndex {
   id           Int      @id @default(autoincrement())
-  code         String   @unique     // 000001
-  name         String               // 上证指数
+  code         String   @unique
+  name         String
+  market       String   @default("cn")
   price        Float?
   changePct    Float?
   changeAmount Float?
@@ -53,28 +41,21 @@ model StockIndex {
   amount       Float?
   updatedAt    DateTime @default(now())
 
+  @@index([market])
   @@map("stock_index")
 }
-
-// ============================================
-// 行业板块行情
-// ============================================
 model Sector {
   id              Int      @id @default(autoincrement())
   name            String   @unique
   changePct       Float?
   leaderStock     String?
   leaderChangePct Float?
-  marketCap       Float?   // Total Market Cap
-  amount          Float?   // Turnover Amount
+  marketCap       Float?
+  amount          Float?
   updatedAt       DateTime @default(now())
 
   @@map("sector")
 }
-
-// ============================================
-// 热门个股排行
-// ============================================
 model HotStock {
   id           Int      @id @default(autoincrement())
   code         String   @unique
@@ -93,18 +74,14 @@ model HotStock {
 
   @@map("hot_stock")
 }
-
-// ============================================
-// 美国国会议员
-// ============================================
 model Politician {
   id        Int      @id @default(autoincrement())
   firstName String
   lastName  String
   fullName  String   @unique
-  chamber   String   // house / senate
+  chamber   String
   state     String
-  party     String?  // D / R / I
+  party     String?
   district  Int?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -114,10 +91,6 @@ model Politician {
   @@index([chamber])
   @@map("politician")
 }
-
-// ============================================
-// 国会交易记录
-// ============================================
 model CongressTrade {
   id              Int      @id @default(autoincrement())
   politicianId    Int?
@@ -125,7 +98,7 @@ model CongressTrade {
 
   ticker          String
   companyName     String?
-  transactionType String   // purchase / sale / sale_partial / sale_full
+  transactionType String
   amountMin       Float?
   amountMax       Float?
   transactionDate DateTime?
@@ -133,8 +106,6 @@ model CongressTrade {
   sourceChamber   String   @default("house")
   docId           String?
   sourceUrl       String?
-
-  // 冗余字段（避免 JOIN）
   politicianName  String?
   politicianParty String?
   politicianState String?
@@ -147,21 +118,17 @@ model CongressTrade {
   @@index([politicianId])
   @@map("congress_trade")
 }
-
-// ============================================
-// 内幕交易记录 (SEC Form 4)
-// ============================================
 model InsiderTrade {
   id              Int      @id @default(autoincrement())
   ticker          String
   companyName     String?
   insiderName     String
-  insiderTitle    String?  // CEO / CFO / Director / 10% Owner
-  transactionType String   // purchase / sale
+  insiderTitle    String?
+  transactionType String
   shares          Float?
   pricePerShare   Float?
   totalValue      Float?
-  sharesOwned     Float?   // 交易后持有量
+  sharesOwned     Float?
   filingDate      DateTime?
   transactionDate DateTime?
   secFormUrl      String?
@@ -172,17 +139,13 @@ model InsiderTrade {
   @@index([insiderName])
   @@map("insider_trade")
 }
-
-// ============================================
-// 新闻/事件动态流
-// ============================================
 model NewsEvent {
   id        Int      @id @default(autoincrement())
-  type      String   // congress_trade / insider_trade / fund_update / lobbying
+  type      String
   title     String
   summary   String?
   ticker    String?
-  relatedEntity String?  // 议员名 / 基金名 / 公司名
+  relatedEntity String?
   url       String?
   timestamp DateTime @default(now())
 
@@ -191,73 +154,45 @@ model NewsEvent {
   @@index([ticker])
   @@map("news_event")
 }
-
-// ============================================
-// 用户角色枚举
-// ============================================
 enum Role {
   USER
   VIP
   ADMIN
 }
-
-// ============================================
-// 用户状态枚举
-// ============================================
 enum UserStatus {
   ACTIVE
   INACTIVE
   BANNED
 }
-
-// ============================================
-// 支付状态枚举
-// ============================================
 enum PayStatus {
   PENDING
   COMPLETED
   FAILED
   REFUNDED
 }
-
-// ============================================
-// 用户模型
-// ============================================
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
   username      String    @unique
-  password      String    // bcrypt hash
+  password      String
   nickname      String?
   avatar        String?
   role          Role      @default(USER)
   status        UserStatus @default(ACTIVE)
-
-  // 邮箱验证
   emailVerified Boolean   @default(false)
   verifyToken   String?   @unique
   verifyExpires DateTime?
-
-  // 密码重置
   resetToken    String?   @unique
   resetExpires  DateTime?
-
-  // 时间戳
   lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  // 关联
   sessions      Session[]
   payments      Payment[]
   analytics     Analytics[]
 
   @@map("users")
 }
-
-// ============================================
-// 会话模型
-// ============================================
 model Session {
   id        String   @id @default(cuid())
   userId    String
@@ -270,10 +205,6 @@ model Session {
 
   @@map("sessions")
 }
-
-// ============================================
-// 支付模型
-// ============================================
 model Payment {
   id            String      @id @default(cuid())
   userId        String
@@ -281,34 +212,27 @@ model Payment {
   amount        Float
   currency      String      @default("CNY")
   status        PayStatus   @default(PENDING)
-  method        String?     // alipay, wechat, stripe
+  method        String?
   transactionId String?     @unique
-  metadata      String?     // JSON string for SQLite compatibility
+  metadata      String?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   @@map("payments")
 }
-
-// ============================================
-// 访问分析模型
-// ============================================
 model Analytics {
   id        String   @id @default(cuid())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id])
-
-  // 访问信息
   path      String
   method    String
   ip        String?
   userAgent String?
   referer   String?
-
-  // 时间
   timestamp DateTime @default(now())
 
   @@index([path, timestamp])
   @@index([userId, timestamp])
   @@map("analytics")
 }
+

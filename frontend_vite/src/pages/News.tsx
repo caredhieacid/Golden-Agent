@@ -43,8 +43,14 @@ export default function News() {
                     实时动态
                 </h1>
                 <p className="text-muted-foreground mt-1">
-                    国会交易、内幕买卖、基金持仓、企业游说 — 一站式信息流
+                    国会交易披露、内部人交易披露等信息聚合展示
                 </p>
+                {/* Data Source Disclaimer */}
+                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
+                    <span className="font-semibold">📚 学术交流展示</span>
+                    <span className="text-blue-300/70">|</span>
+                    <span>数据来源：美国官方公开披露渠道 (House/Senate/SEC)</span>
+                </div>
             </div>
 
             {/* 类型过滤 */}

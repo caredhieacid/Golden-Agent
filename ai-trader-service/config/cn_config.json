@@ -1,0 +1,40 @@
+{
+  "market": "cn",
+  "name": "Chinese A-Share Market",
+  "description": "Analysis configuration for Chinese A-share market recommendations",
+  "indices_focus": [
+    "000001", "399001", "399006"
+  ],
+  "sectors_focus": [
+    "科技", "医药", "消费", "新能源", "金融", "地产", "军工"
+  ],
+  "analysis_config": {
+    "max_recommendations": 3,
+    "min_confidence": 0.5,
+    "lookback_days": 30,
+    "sector_change_threshold": 2.5,
+    "hot_stock_volume_threshold": 100000000
+  },
+  "risk_config": {
+    "high_risk_threshold": 0.3,
+    "medium_risk_threshold": 0.6,
+    "default_stop_loss_pct": 0.08,
+    "position_size_suggestion": "单只股票不超过总仓位的10%"
+  },
+  "data_sources": {
+    "indices": "/api/stocks",
+    "sectors": "/api/stocks/sectors",
+    "hot_stocks": "/api/stocks/hot",
+    "gold": "/api/gold"
+  },
+  "schedule": {
+    "cron": "0 * * * *",
+    "description": "Every hour at minute 0"
+  },
+  "notes": [
+    "A股市场波动较大，建议严格设置止损",
+    "关注板块轮动节奏",
+    "注意政策面变化",
+    "建议结合北向资金流向"
+  ]
+}

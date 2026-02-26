@@ -4,26 +4,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
     Gavel, BarChart3, TrendingUp, Search,
-    Menu, X, Newspaper, UserSearch, AlertTriangle
+    Menu, X, Newspaper, UserSearch, AlertTriangle,
+    User, LogOut, ChevronDown, Settings, Sparkles
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { Logo } from "@/components/ui/logo";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useData } from "@/lib/data-provider";
 import { gsap } from "gsap";
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
+
+type SearchResultSet = {
+    politicians: any[];
+    stocks: any[];
+    insider_stocks: any[];
+    news: any[];
+};
+
 export function Header() {
+    const enableAI = (import.meta.env.VITE_ENABLE_AI ?? "true") !== "false";
     const location = useLocation();
     const pathname = location.pathname;
     const navigate = useNavigate();
     const [isScrolled, setIsScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
     const headerRef = useRef<HTMLDivElement>(null);
+    const userMenuRef = useRef<HTMLDivElement>(null);
 
-    // 搜索 — 使用全局 Context 本地过滤
-    const { congress, insiders, stocks } = useData();
+    const { user, logout } = useAuth();
+
     const [searchQuery, setSearchQuery] = useState("");
     const [searchOpen, setSearchOpen] = useState(false);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<SearchResultSet | null>(null);
     const searchRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,7 +55,7 @@ export function Header() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
-    // Command+K 快捷键聚焦
+    // Command/Ctrl + K 快捷聚焦搜索框
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -62,61 +77,55 @@ export function Header() {
             if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
                 setSearchOpen(false);
             }
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+                setUserMenuOpen(false);
+            }
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
     }, []);
-
-    // 本地搜索：从 Context 数据中实时过滤
-    const searchResults = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        if (q.length < 1) return null;
-
-        // 搜议员
-        const politicians = (congress.politicians as any[])
-            .filter(p => {
-                const name = (p.full_name || p.name || "").toLowerCase();
-                const state = (p.state || "").toLowerCase();
-                return name.includes(q) || state.includes(q);
-            })
-            .slice(0, 5)
-            .map(p => ({
-                id: p.id,
-                name: p.full_name || p.name,
-                party: p.party,
-                state: p.state,
-                chamber: p.chamber,
-            }));
-
-        // 搜 A 股
-        const aStocks = (stocks.hot as any[])
-            .filter(s => {
-                const code = (s.code || "").toLowerCase();
-                const name = (s.name || "").toLowerCase();
-                return code.includes(q) || name.includes(q);
-            })
-            .slice(0, 5);
-
-        // 搜美股
-        const tickerMap = new Map<string, string>();
-        for (const t of congress.trades as any[]) {
-            if (t.ticker) tickerMap.set(t.ticker.toUpperCase(), t.company_name || t.ticker);
+    useEffect(() => {
+        const q = searchQuery.trim();
+        if (!q) {
+            setSearchResults(null);
+            setSearchLoading(false);
+            return;
         }
-        for (const t of insiders.trades as any[]) {
-            if (t.ticker && !tickerMap.has(t.ticker.toUpperCase())) {
-                tickerMap.set(t.ticker.toUpperCase(), t.company_name || t.ticker);
+
+        const searchMarket = pathname.startsWith("/cn-market")
+            ? "cn"
+            : (pathname.startsWith("/congress") || pathname.startsWith("/insider") ? "us" : "all");
+
+        const controller = new AbortController();
+        const timer = setTimeout(async () => {
+            try {
+                setSearchLoading(true);
+                const res = await fetch(
+                    `${API_BASE}/search?q=${encodeURIComponent(q)}&limit=6&market=${searchMarket}&include_news=true`,
+                    { signal: controller.signal }
+                );
+                if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+                const data = await res.json();
+                setSearchResults({
+                    politicians: data.politicians ?? [],
+                    stocks: data.stocks ?? [],
+                    insider_stocks: data.insider_stocks ?? [],
+                    news: data.news ?? [],
+                });
+            } catch (error: any) {
+                if (error?.name !== "AbortError") {
+                    setSearchResults({ politicians: [], stocks: [], insider_stocks: [], news: [] });
+                }
+            } finally {
+                setSearchLoading(false);
             }
-        }
-        const insider_stocks = Array.from(tickerMap.entries())
-            .filter(([ticker, company]) =>
-                ticker.toLowerCase().includes(q) || company.toLowerCase().includes(q)
-            )
-            .slice(0, 5)
-            .map(([ticker, company_name]) => ({ ticker, company_name }));
+        }, 250);
 
-        const hasResults = politicians.length > 0 || aStocks.length > 0 || insider_stocks.length > 0;
-        return hasResults ? { politicians, stocks: aStocks, insider_stocks } : { politicians: [], stocks: [], insider_stocks: [] };
-    }, [searchQuery, congress.politicians, congress.trades, insiders.trades, stocks.hot]);
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [searchQuery, pathname]);
 
     const handleSearchInput = (val: string) => {
         setSearchQuery(val);
@@ -127,8 +136,8 @@ export function Header() {
     const navItems = [
         { name: "国会交易", href: "/congress", icon: Gavel },
         { name: "内幕交易", href: "/insider", icon: UserSearch },
-        { name: "实时动态", href: "/news", icon: Newspaper },
-        // AI分析功能已暂停，将作为学术研究项目单独开源
+        { name: "News", href: "/news", icon: Newspaper },
+        ...(enableAI ? [{ name: "AI推荐", href: "/ai", icon: Sparkles }] : []),
         { name: "行情数据", href: "/cn-market", icon: TrendingUp },
         { name: "黄金市场", href: "/gold", icon: BarChart3 },
     ];
@@ -140,7 +149,7 @@ export function Header() {
                 <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center justify-center gap-2 flex-wrap">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     <span>
-                        本站仅提供客观信息聚合与工具服务，不构成任何投资建议，不推荐任何证券标的，不对投资盈亏承担任何责任。
+                        本站仅提供公开信息聚合与数据工具，不构成任何投资建议，也不对投资收益或亏损承担责任。
                     </span>
                     <span className="text-amber-700 dark:text-amber-300">投资有风险，入市需谨慎</span>
                 </p>
@@ -215,11 +224,11 @@ export function Header() {
                                 className="w-32 lg:w-40 xl:w-56 pl-9 h-10 bg-white/5 border-transparent hover:bg-white/10 focus:bg-black/50 focus:w-48 lg:focus:w-64 focus:border-primary/30 transition-all duration-300 rounded-full text-sm placeholder:text-muted-foreground/50 backdrop-blur-md"
                                 value={searchQuery}
                                 onChange={e => handleSearchInput(e.target.value)}
-                                onFocus={() => { if (searchResults) setSearchOpen(true); }}
+                                onFocus={() => { if (searchQuery.trim().length > 0) setSearchOpen(true); }}
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none group-focus-within:opacity-0 transition-opacity">
                                 <kbd className="inline-flex h-5 items-center gap-1 rounded bg-white/5 px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-50 border border-white/5">
-                                    ⌘K
+                                    Ctrl+K
                                 </kbd>
                             </div>
 
@@ -241,7 +250,7 @@ export function Header() {
                                                         <button key={p.id} onClick={() => { navigate(`/congress/politician/${encodeURIComponent(p.name)}`); setSearchOpen(false); setSearchQuery(""); }}
                                                             className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm group transition-all border border-transparent hover:border-white/5">
                                                             <div className={cn("w-2 h-2 rounded-full ring-2 ring-transparent group-hover:ring-offset-1 transition-all", p.party === "D" ? "bg-blue-500" : p.party === "R" ? "bg-red-500" : "bg-gray-400")} />
-                                                            <span className="font-medium text-gray-200">{formatPoliticianDisplayName(p.name)}</span>
+                                                            <span className="font-medium text-gray-200">{formatPoliticianDisplayName(p.name_highlight || p.name)}</span>
                                                             <span className="text-xs text-muted-foreground ml-auto">{formatChamber(p.chamber)}</span>
                                                         </button>
                                                     ))}
@@ -255,16 +264,31 @@ export function Header() {
                                                         <button key={s.code || s.ticker || i} onClick={() => { navigate(s.code ? '/cn-market' : `/stock/${s.ticker}`); setSearchOpen(false); setSearchQuery(""); }}
                                                             className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm group transition-all border border-transparent hover:border-white/5">
                                                             <span className="font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded text-xs group-hover:bg-primary group-hover:text-black transition-colors">{s.code || s.ticker}</span>
-                                                            <span className="text-gray-300 truncate">{s.name || s.company_name}</span>
+                                                            <span className="text-gray-300 truncate">{s.name_highlight || s.name || s.company_name_highlight || s.company_name}</span>
                                                         </button>
                                                     ))}
                                                 </div>
                                             )}
-                                            {!searchResults.politicians?.length && !searchResults.stocks?.length && !searchResults.insider_stocks?.length && (
+                                            {searchResults.news?.length > 0 && (
+                                                <div>
+                                                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 py-1.5 font-semibold opacity-70 border-t border-white/5 pt-2">新闻</div>
+                                                    {searchResults.news.map((n: any) => (
+                                                        <button key={n.id} onClick={() => { navigate('/news'); setSearchOpen(false); setSearchQuery(""); }}
+                                                            className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm group transition-all border border-transparent hover:border-white/5">
+                                                            <Newspaper className="h-4 w-4 text-primary" />
+                                                            <span className="text-gray-300 truncate">{n.title_highlight || n.title}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {!searchLoading && !searchResults.politicians?.length && !searchResults.stocks?.length && !searchResults.insider_stocks?.length && !searchResults.news?.length && (
                                                 <div className="p-8 text-center text-sm text-muted-foreground">
                                                     <Search className="h-6 w-6 mx-auto mb-2 opacity-20" />
                                                     未找到 &quot;{searchQuery}&quot; 相关结果
                                                 </div>
+                                            )}
+                                            {searchLoading && (
+                                                <div className="p-6 text-center text-sm text-muted-foreground">搜索中...</div>
                                             )}
                                         </div>
                                     </motion.div>
@@ -272,11 +296,65 @@ export function Header() {
                             </AnimatePresence>
                         </div>
 
-                        <Link to="/login">
-                            <Button size="sm" className="hidden sm:inline-flex rounded-full px-6 bg-white text-black hover:bg-white/90 font-semibold border-0 transition-all duration-300 hover:scale-105 active:scale-95">
-                                登录
-                            </Button>
-                        </Link>
+                        {/* Auth Button / User Menu */}
+                        {user ? (
+                            <div className="relative" ref={userMenuRef}>
+                                <button
+                                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                                >
+                                    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium">
+                                        {user.username.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-sm text-white hidden sm:inline">{user.nickname || user.username}</span>
+                                    <ChevronDown className="h-4 w-4 text-white/60" />
+                                </button>
+
+                                {userMenuOpen && (
+                                    <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50">
+                                        <div className="p-3 border-b border-white/10">
+                                            <p className="text-sm font-medium text-white">{user.nickname || user.username}</p>
+                                            <p className="text-xs text-zinc-400">{user.email}</p>
+                                        </div>
+                                        <div className="p-1">
+                                            <Link
+                                                to="/profile"
+                                                onClick={() => setUserMenuOpen(false)}
+                                                className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <User className="h-4 w-4" />
+                                                个人中心
+                                            </Link>
+                                            {user.role === 'ADMIN' || user.role === 'VIP' ? (
+                                                <a
+                                                    href="http://43.139.95.67"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={() => setUserMenuOpen(false)}
+                                                    className="flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                >
+                                                    <Settings className="h-4 w-4" />
+                                                    管理后台
+                                                </a>
+                                            ) : null}
+                                            <button
+                                                onClick={() => { logout(); setUserMenuOpen(false); }}
+                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-white/10 rounded-lg transition-colors"
+                                            >
+                                                <LogOut className="h-4 w-4" />
+                                                退出登录
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <Link to="/login">
+                                <Button size="sm" className="hidden sm:inline-flex rounded-full px-6 bg-white text-black hover:bg-white/90 font-semibold border-0 transition-all duration-300 hover:scale-105 active:scale-95">
+                                    登录
+                                </Button>
+                            </Link>
+                        )}
 
                         {/* Mobile Menu Button */}
                         <button className="lg:hidden p-2 text-foreground/80 hover:text-foreground transition-colors"
@@ -316,3 +394,4 @@ export function Header() {
         </>
     );
 }
+

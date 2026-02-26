@@ -69,11 +69,22 @@ export default function Insider() {
                         transition={{ duration: 0.5 }}
                     >
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-2">
-                            企业 <span className="text-blue-500 block md:inline">内幕交易</span>
+                            企业 <span className="text-blue-500 block md:inline">内部人交易</span>
                         </h1>
                         <p className="text-muted-foreground text-lg max-w-2xl">
-                            监控 CEO、CFO 及董事会成员的交易活动，捕捉内部人士的市场信号。
+                            查看美股上市公司高管及大股东的持股变动披露信息。
                         </p>
+                    </motion.div>
+                    {/* Data Source Disclaimer */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400"
+                    >
+                        <span className="font-semibold">📚 学术交流展示</span>
+                        <span className="text-blue-300/70">|</span>
+                        <span>数据来源：美国证券交易委员会 SEC Form 4 官方披露 (sec.gov)</span>
                     </motion.div>
                 </div>
 

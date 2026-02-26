@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Captcha, useCaptcha } from '@/components/auth/Captcha';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, UserPlus } from 'lucide-react';
+import { Loader2, UserPlus, Mail } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 const registerSchema = z.object({
   email: z.string().email('请输入有效的邮箱地址'),
@@ -25,7 +25,7 @@ const registerSchema = z.object({
     .regex(/[A-Z]/, '密码需要包含大写字母')
     .regex(/\d/, '密码需要包含数字'),
   confirmPassword: z.string(),
-  captcha: z.string().min(1, '请输入验证码'),
+  emailCode: z.string().length(6, '请输入6位验证码'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: '两次密码不一致',
   path: ['confirmPassword'],
@@ -35,57 +35,73 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function Register() {
   const navigate = useNavigate();
-  const { captchaId, svg, refresh: refreshCaptcha } = useCaptcha();
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const { register: registerUser, sendEmailCode } = useAuth();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
     watch,
-    setValue,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
 
-  const captchaValue = watch('captcha');
+  const email = watch('email');
 
-  const onSubmit = async (data: RegisterFormData) => {
-    if (!captchaId) {
-      toast.error('请先获取验证码');
+  // Send email verification code
+  const handleSendCode = async () => {
+    if (!email) {
+      toast.error('请先输入邮箱地址');
       return;
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error('请输入有效的邮箱地址');
+      return;
+    }
+
+    setSendingCode(true);
+    try {
+      const result = await sendEmailCode(email, 'register');
+      if (!result.success) {
+        throw new Error(result.error || '发送失败');
+      }
+      toast.success('验证码已发送，请查收邮件');
+
+      // Start 60s countdown
+      setCountdown(60);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '发送失败');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const onSubmit = async (data: RegisterFormData) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: data.email,
-          username: data.username,
-          password: data.password,
-          captchaId,
-          captchaAnswer: data.captcha,
-        }),
-      });
+      const result = await registerUser(data.email, data.username, data.password, data.emailCode);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        refreshCaptcha();
-        setValue('captcha', '');
-        throw new Error(result.error || result.errors?.join(', ') || '注册失败');
+      if (!result.success) {
+        throw new Error(result.error || '注册失败');
       }
 
-      toast.success('注册成功');
-
-      if (result.emailVerificationRequired) {
-        toast.info('请检查邮箱完成验证');
-        navigate('/login');
-      } else {
-        navigate('/login');
-      }
+      toast.success('注册成功！请登录');
+      navigate('/login');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '注册失败');
     } finally {
@@ -98,21 +114,57 @@ export default function Register() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">注册</CardTitle>
-          <CardDescription>创建您的金策智显账号</CardDescription>
+          <CardDescription>创建您的天枢账号</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="请输入邮箱地址"
-                {...register('email')}
-                disabled={loading}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="请输入邮箱地址"
+                  {...register('email')}
+                  disabled={loading || sendingCode}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSendCode}
+                  disabled={loading || sendingCode || countdown > 0}
+                  className="shrink-0"
+                >
+                  {sendingCode ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : countdown > 0 ? (
+                    `${countdown}s`
+                  ) : (
+                    <>
+                      <Mail className="mr-1 h-4 w-4" />
+                      发送验证码
+                    </>
+                  )}
+                </Button>
+              </div>
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="emailCode">邮箱验证码</Label>
+              <Input
+                id="emailCode"
+                type="text"
+                placeholder="请输入6位邮箱验证码"
+                maxLength={6}
+                {...register('emailCode')}
+                disabled={loading}
+              />
+              {errors.emailCode && (
+                <p className="text-sm text-destructive">{errors.emailCode.message}</p>
               )}
             </div>
 
@@ -155,21 +207,6 @@ export default function Register() {
               />
               {errors.confirmPassword && (
                 <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>验证码</Label>
-              <Captcha
-                captchaId={captchaId}
-                svg={svg}
-                onRefresh={refreshCaptcha}
-                value={captchaValue || ''}
-                onChange={(value) => setValue('captcha', value)}
-                disabled={loading}
-              />
-              {errors.captcha && (
-                <p className="text-sm text-destructive">{errors.captcha.message}</p>
               )}
             </div>
           </CardContent>

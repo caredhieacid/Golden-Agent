@@ -1,0 +1,31 @@
+{
+  "market": "us",
+  "name": "US Stock Market",
+  "description": "Analysis configuration for US stock market recommendations",
+  "tickers_focus": [
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+    "JPM", "V", "JNJ", "UNH", "HD", "PG", "MA", "DIS"
+  ],
+  "analysis_config": {
+    "max_recommendations": 3,
+    "min_confidence": 0.5,
+    "lookback_days": 30,
+    "congress_trade_threshold": 3,
+    "insider_value_threshold": 2000000
+  },
+  "risk_config": {
+    "high_risk_threshold": 0.3,
+    "medium_risk_threshold": 0.6,
+    "default_stop_loss_pct": 0.05,
+    "position_size_suggestion": "2-5% of portfolio"
+  },
+  "data_sources": {
+    "congress_trades": "/api/congress/trades",
+    "insider_trades": "/api/insiders/trades",
+    "stock_data": "/api/stocks"
+  },
+  "schedule": {
+    "cron": "0 * * * *",
+    "description": "Every hour at minute 0"
+  }
+}

@@ -76,11 +76,22 @@ export default function Congress() {
                         transition={{ duration: 0.5 }}
                     >
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white mb-2">
-                            国会山 <span className="text-primary block md:inline">交易监控</span>
+                            国会山 <span className="text-primary block md:inline">交易披露</span>
                         </h1>
                         <p className="text-muted-foreground text-lg max-w-2xl">
-                            实时追踪美国国会山交易动态，洞察聪明钱的流向。
+                            追踪美国国会议员股票交易披露信息，数据来源于官方公开渠道。
                         </p>
+                    </motion.div>
+                    {/* Data Source Disclaimer */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400"
+                    >
+                        <span className="font-semibold">📚 学术交流展示</span>
+                        <span className="text-blue-300/70">|</span>
+                        <span>数据来源：美国众议院/参议院官方财务披露网站 (disclosures-clerk.house.gov, senate.gov)</span>
                     </motion.div>
                 </div>
 

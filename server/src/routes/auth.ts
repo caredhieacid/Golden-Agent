@@ -1,14 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { randomInt } from 'crypto';
 import { prisma } from '../db.js';
 import { hashPassword, comparePassword, validatePasswordStrength, validateEmail, validateUsername } from '../utils/password.js';
 import { generateTokenPair, verifyToken, getTokenExpiration } from '../utils/jwt.js';
 import { generateCaptcha, verifyCaptcha } from '../utils/captcha.js';
-import { sendVerificationEmail, sendPasswordResetEmail, isEmailConfigured } from '../utils/email.js';
+import { sendVerificationEmail, sendPasswordResetEmail, sendVerificationCodeEmail, isEmailConfigured } from '../utils/email.js';
 import { authMiddleware, createAuthRateLimiter } from '../middleware/auth.js';
 
 const router = Router();
 const authLimiter = createAuthRateLimiter();
+
+// Email verification code store (in-memory, for production use Redis)
+const emailCodeStore = new Map<string, { code: string; expiresAt: number; type: string }>();
+
+// Clean up expired codes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of emailCodeStore.entries()) {
+    if (data.expiresAt < now) {
+      emailCodeStore.delete(key);
+    }
+  }
+}, 60000);
 
 /**
  * GET /api/auth/captcha
@@ -23,26 +37,102 @@ router.get('/captcha', (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/auth/send-email-code
+ * Send verification code to email
+ */
+router.post('/send-email-code', authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { email, type } = req.body;
+
+    if (!email || !type) {
+      return res.status(400).json({ error: 'Email and type are required' });
+    }
+
+    if (!['register', 'reset', 'change'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid type' });
+    }
+
+    if (!validateEmail(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // For registration, check if email already exists
+    if (type === 'register') {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        return res.status(409).json({ error: '该邮箱已被注册' });
+      }
+    }
+
+    // For reset, check if email exists
+    if (type === 'reset') {
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (!existing) {
+        // Don't reveal if email exists
+        return res.json({ message: '如果邮箱存在，验证码已发送' });
+      }
+    }
+
+    // Generate 6-digit code
+    const code = randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    // Store code
+    emailCodeStore.set(email, { code, expiresAt, type });
+
+    // Send email
+    if (isEmailConfigured()) {
+      const result = await sendVerificationCodeEmail(email, code, type);
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || '发送失败' });
+      }
+    } else {
+      console.log(`[Dev] 验证码 for ${email}: ${code}`);
+    }
+
+    res.json({ message: '验证码已发送，请查收邮件' });
+  } catch (error) {
+    console.error('Send email code error:', error);
+    res.status(500).json({ error: '发送失败' });
+  }
+});
+
+/**
+ * Verify email code helper
+ */
+function verifyEmailCode(email: string, code: string, type: string): boolean {
+  const stored = emailCodeStore.get(email);
+  if (!stored) return false;
+  if (stored.expiresAt < Date.now()) {
+    emailCodeStore.delete(email);
+    return false;
+  }
+  if (stored.code !== code || stored.type !== type) return false;
+  emailCodeStore.delete(email); // One-time use
+  return true;
+}
+
+/**
  * POST /api/auth/register
- * Register a new user
+ * Register a new user (requires email verification code)
  */
 router.post('/register', authLimiter, async (req: Request, res: Response) => {
   try {
-    const { email, username, password, captchaId, captchaAnswer } = req.body;
+    const { email, username, password, emailCode } = req.body;
 
     // Validate required fields
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'Email, username, and password are required' });
+    if (!email || !username || !password || !emailCode) {
+      return res.status(400).json({ error: '邮箱、用户名、密码和验证码都是必填项' });
     }
 
-    // Validate captcha
-    if (!captchaId || !captchaAnswer || !verifyCaptcha(captchaId, captchaAnswer)) {
-      return res.status(400).json({ error: 'Invalid or expired captcha' });
+    // Verify email code
+    if (!verifyEmailCode(email, emailCode, 'register')) {
+      return res.status(400).json({ error: '验证码无效或已过期' });
     }
 
     // Validate email format
     if (!validateEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
+      return res.status(400).json({ error: '邮箱格式不正确' });
     }
 
     // Validate username
@@ -57,50 +147,38 @@ router.post('/register', authLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ errors: passwordValidation.errors });
     }
 
-    // Check if email already exists
+    // Check if email already exists (double check)
     const existingEmail = await prisma.user.findUnique({ where: { email } });
     if (existingEmail) {
-      return res.status(409).json({ error: 'Email already registered' });
+      return res.status(409).json({ error: '该邮箱已被注册' });
     }
 
     // Check if username already exists
     const existingUsername = await prisma.user.findUnique({ where: { username } });
     if (existingUsername) {
-      return res.status(409).json({ error: 'Username already taken' });
+      return res.status(409).json({ error: '用户名已被使用' });
     }
 
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Generate verification token
-    const verifyToken = uuidv4();
-    const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    // Create user
+    // Create user (email already verified via code)
     const user = await prisma.user.create({
       data: {
         email,
         username,
         password: hashedPassword,
-        verifyToken,
-        verifyExpires,
-        emailVerified: false,
+        emailVerified: true, // Already verified via code
       },
     });
 
-    // Send verification email
-    if (isEmailConfigured()) {
-      await sendVerificationEmail(email, username, verifyToken);
-    }
-
     res.status(201).json({
-      message: 'Registration successful. Please check your email to verify your account.',
+      message: '注册成功！请登录',
       userId: user.id,
-      emailVerificationRequired: isEmailConfigured(),
     });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ error: '注册失败，请稍后重试' });
   }
 });
 
@@ -117,17 +195,24 @@ router.post('/login', authLimiter, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Login and password are required' });
     }
 
-    // Validate captcha
-    if (!captchaId || !captchaAnswer || !verifyCaptcha(captchaId, captchaAnswer)) {
-      return res.status(400).json({ error: 'Invalid or expired captcha' });
-    }
-
     // Find user by email or username
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: login }, { username: login }],
       },
     });
+
+    // 管理员跳过验证码检查
+    const isAdmin = user && user.role === 'ADMIN';
+
+    // Validate captcha (普通用户需要验证码)
+    if (!isAdmin && (!captchaId || !captchaAnswer || !verifyCaptcha(captchaId, captchaAnswer))) {
+      return res.status(400).json({ error: 'Invalid or expired captcha' });
+    }
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });

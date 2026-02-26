@@ -110,5 +110,11 @@ tmp/
 temp/
 
 # Local experiments / generated artifacts
-ai-trader-service/
 apk/
+
+# AI trader service (open-source friendly ignores)
+ai-trader-service/.env
+ai-trader-service/venv/
+ai-trader-service/output/
+ai-trader-service/data/
+ai-trader-service/nul

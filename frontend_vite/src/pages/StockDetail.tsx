@@ -13,14 +13,50 @@ import { cn, formatChamber, formatParty, formatPoliticianDisplayName } from "@/l
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
-/* ─── 工具函数 ─── */
+type TradingViewGlobal = {
+    widget: new (options: Record<string, unknown>) => unknown;
+};
+
+declare global {
+    interface Window {
+        TradingView?: TradingViewGlobal;
+    }
+}
+
+let tradingViewScriptPromise: Promise<void> | null = null;
+
+function loadTradingViewScript(): Promise<void> {
+    if (window.TradingView) return Promise.resolve();
+    if (!tradingViewScriptPromise) {
+        tradingViewScriptPromise = new Promise((resolve, reject) => {
+            const existing = document.querySelector<HTMLScriptElement>('script[data-tv-script="true"]');
+            if (existing) {
+                existing.addEventListener("load", () => resolve(), { once: true });
+                existing.addEventListener("error", () => reject(new Error("Failed to load TradingView script")), { once: true });
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.src = "https://s3.tradingview.com/tv.js";
+            script.async = true;
+            script.dataset.tvScript = "true";
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error("Failed to load TradingView script"));
+            document.head.appendChild(script);
+        });
+    }
+    return tradingViewScriptPromise;
+}
+
 function safeDate(d: string | null | undefined): string {
     if (!d) return "--";
     try {
         const date = new Date(d);
         if (isNaN(date.getTime())) return "--";
         return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}`;
-    } catch { return "--"; }
+    } catch {
+        return "--";
+    }
 }
 
 function formatMoney(val: number | null | undefined): string {
@@ -30,37 +66,47 @@ function formatMoney(val: number | null | undefined): string {
     return `$${val.toFixed(0)}`;
 }
 
-/* ─── TradingView 图表 ─── */
+/* TradingView Chart */
 function TradingViewChart({ ticker }: { ticker: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!containerRef.current) return;
-        // 清空旧内容
-        containerRef.current.innerHTML = "";
+        const container = containerRef.current;
+        if (!container || !ticker) return;
 
-        const script = document.createElement("script");
-        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-        script.type = "text/javascript";
-        script.async = true;
-        script.innerHTML = JSON.stringify({
-            autosize: true,
-            symbol: ticker,
-            interval: "D",
-            timezone: "Etc/UTC",
-            theme: "dark",
-            style: "1",
-            locale: "zh_CN",
-            backgroundColor: "rgba(0, 0, 0, 0)", // Transparent background
-            gridColor: "rgba(255, 255, 255, 0.04)",
-            hide_top_toolbar: false,
-            hide_legend: false,
-            allow_symbol_change: true,
-            save_image: false,
-            calendar: false,
-            support_host: "https://www.tradingview.com",
-        });
-        containerRef.current.appendChild(script);
+        let cancelled = false;
+        const chartId = `tv-chart-${ticker.replace(/[^a-zA-Z0-9_]/g, "_")}-${Date.now()}`;
+        container.innerHTML = `<div id="${chartId}" class="h-full w-full"></div>`;
+
+        loadTradingViewScript()
+            .then(() => {
+                if (cancelled || !window.TradingView) return;
+                new window.TradingView.widget({
+                    autosize: true,
+                    symbol: ticker,
+                    interval: "D",
+                    timezone: "Etc/UTC",
+                    theme: "dark",
+                    style: "1",
+                    locale: "zh_CN",
+                    backgroundColor: "rgba(0,0,0,0)",
+                    gridColor: "rgba(255,255,255,0.04)",
+                    hide_top_toolbar: false,
+                    hide_legend: false,
+                    allow_symbol_change: true,
+                    save_image: false,
+                    calendar: false,
+                    container_id: chartId,
+                });
+            })
+            .catch(() => {
+                // keep page usable if third-party script fails
+            });
+
+        return () => {
+            cancelled = true;
+            container.innerHTML = "";
+        };
     }, [ticker]);
 
     return (

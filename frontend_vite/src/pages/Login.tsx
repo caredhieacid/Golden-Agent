@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, LogIn } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 const loginSchema = z.object({
   login: z.string().min(1, '请输入邮箱或用户名'),
@@ -24,6 +25,7 @@ export default function Login() {
   const location = useLocation();
   const { captchaId, svg, refresh: refreshCaptcha } = useCaptcha();
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const from = (location.state as any)?.from?.pathname || '/';
 
@@ -47,27 +49,13 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          login: data.login,
-          password: data.password,
-          captchaId,
-          captchaAnswer: data.captcha,
-        }),
-      });
+      const result = await login(data.login, data.password, captchaId, data.captcha);
 
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (!result.success) {
         refreshCaptcha();
         setValue('captcha', '');
         throw new Error(result.error || '登录失败');
       }
-
-      localStorage.setItem('accessToken', result.accessToken);
-      localStorage.setItem('refreshToken', result.refreshToken);
 
       toast.success('登录成功');
       navigate(from, { replace: true });
@@ -83,7 +71,7 @@ export default function Login() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">登录</CardTitle>
-          <CardDescription>输入您的账号信息登录金策智显</CardDescription>
+          <CardDescription>输入您的账号信息登录天枢</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">

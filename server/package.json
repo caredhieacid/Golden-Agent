@@ -1,15 +1,16 @@
 {
     "name": "golden-agent-server",
     "version": "1.0.0",
-    "description": "金策智显 Node.js 后端 — 实时金融数据同步 & API",
+    "description": "Golden Agent Node.js backend API and data sync service",
     "private": true,
     "scripts": {
         "dev": "tsx watch src/index.ts",
         "build": "tsc",
         "start": "node dist/index.js",
-        "db:push": "prisma db push --skip-generate",
+        "db:push": "prisma db push",
         "db:studio": "prisma studio",
-        "db:generate": "prisma generate"
+        "db:generate": "prisma generate",
+        "postinstall": "prisma generate"
     },
     "dependencies": {
         "@prisma/client": "^6.4.1",
@@ -23,7 +24,7 @@
         "node-fetch": "^3.3.2",
         "nodemailer": "^8.0.1",
         "svg-captcha": "^1.4.0",
-        "uuid": "^13.0.0"
+        "uuid": "^9.0.0"
     },
     "devDependencies": {
         "@types/bcryptjs": "^2.4.6",
@@ -39,3 +40,4 @@
         "typescript": "^5.7.3"
     }
 }
+
