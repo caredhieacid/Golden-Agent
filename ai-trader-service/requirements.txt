@@ -13,7 +13,7 @@ anthropic>=0.18.0
 # Data processing
 httpx>=0.26.0
 pandas>=2.2.0
-numpy>=1.26.0
+numpy>=2.5.3
 
 # MCP (Model Context Protocol) - optional for future tool chain
 # mcp>=0.1.0
